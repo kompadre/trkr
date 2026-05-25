@@ -68,13 +68,17 @@ func Play() {
 
 	tickerPause := (time.Minute / BeatsPerMinute) / 4
 	IsPlaying = true
-	// ticker := time.NewTicker(tickerPause)
+	timer := time.NewTimer(tickerPause)
+	defer timer.Stop() // Clean up when the playback loop terminates
+
 	for {
-		//newTs := time.Now()
 		go ev.Trigger(ev.EventKindTick, ev.EventContext{})
+
 		select {
-		case <-time.After(tickerPause):
+		case <-timer.C:
+			timer.Reset(tickerPause)
 			continue
+
 		case <-StopChannel:
 			IsPlaying = false
 			return
