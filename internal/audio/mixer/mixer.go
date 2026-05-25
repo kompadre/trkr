@@ -2,25 +2,22 @@ package mixer
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 var delayBufferSize uint
 var delayBuffer []float32 //= make([]float32, delayBufferSize)
 var delayReadIndex uint
 var delayWriteIndex uint
-var ExposedDelayBuffer []float32
-var delayStepBuffer []float32
 var delayBufferIsFull bool
 var empty []int32
 
-func Attach() {
-	rl.AttachAudioMixedProcessor(ProcessAudio)
-}
-
-func Detach() {
-	rl.DetachAudioMixedProcessor(ProcessAudio)
-}
+//func Attach() {
+//	rl.AttachAudioMixedProcessor(ProcessAudio)
+//}
+//
+//func Detach() {
+//	rl.DetachAudioMixedProcessor(ProcessAudio)
+//}
 
 // ProcessAudio is the audio processing function
 func ProcessAudio(buffer []float32, frames int) {

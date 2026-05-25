@@ -1,7 +1,7 @@
 EXE := trkr
 SRC := $(sh find . --name "*.go" | xargs echo)
 
-all:	$(EXE) $(EXE).arm64 # main.arm64
+all:	$(EXE) #$(EXE).arm64 # main.arm64
 
 $(EXE):	$(SRC)
 	go build -o $(EXE) cmd/main.go
@@ -13,4 +13,4 @@ run:	$(EXE)
 	./$(EXE)
 
 clean:
-	rm $(EXE) $(EXE).arm64
+	rm $(EXE) # $(EXE).arm64

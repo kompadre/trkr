@@ -1,17 +1,24 @@
 package main
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"runtime"
 	"time"
 	. "trkr"
 	ui "trkr/internal"
+
+	//	"trkr/internal/audio"
+	"trkr/internal/audio"
 	"trkr/internal/events"
 	"trkr/internal/player"
 	track "trkr/internal/views"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 func main() {
+
+	audio.Init()
+	defer audio.CleanUp()
 	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "internal v0.0")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(30)
@@ -98,9 +105,11 @@ func demoProject() *Project {
 	}
 
 	currentTrack = &currentProject.Tracks[1]
-	currentTrack.Samples = []Sample{
-		{SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2")},
+	currentTrack.IsMultisample = false
+	currentTrack.Sample = Sample{
+		SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2"),
 	}
+
 	////currentPhrase = &currentTrack.Phrases[0]
 	////currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), 0, 0}
 	////currentPhrase.Steps[4].Notes = [MaxNotesInStep]Note{0, ParseNote("D#2"), 0}
@@ -141,8 +150,9 @@ func demoProject() *Project {
 	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
 
 	currentTrack = &currentProject.Tracks[2]
-	currentTrack.Samples = []Sample{
-		{SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2")},
+	currentTrack.IsMultisample = false
+	currentTrack.Sample = Sample{
+		SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2"),
 	}
 	currentPhrase = &Phrase{}
 	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 4")}

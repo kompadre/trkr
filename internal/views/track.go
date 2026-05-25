@@ -2,18 +2,18 @@ package track
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 	. "trkr"
 	ui "trkr/internal"
 	ev "trkr/internal/events"
 	"trkr/internal/player"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 var columnStarts = []int{10, 40, 80, 120, 160, 200, 240, 280, 320}
 var columnWidths = []int{30, 40, 40, 40, 40, 30}
 var currentCol int
 var currentRow int
-var inputNextAction int64
 
 const (
 	RowsInScreen = 14
@@ -102,6 +102,7 @@ func handleInput(input ev.InputSnapshot) bool {
 				CurrentProject.Current().CurrentPhrase = Clamp(CurrentProject.Current().CurrentPhrase+1, 0, len(CurrentProject.Current().Phrases)-1)
 			}
 		}
+		result = true
 	} else if input[ev.InputKindDir] {
 		if input[ev.InputKindPressedDown] {
 			currentRow = Clamp(currentRow+1, 0, MaxStepsInPhrase-1)
@@ -115,8 +116,7 @@ func handleInput(input ev.InputSnapshot) bool {
 		result = true
 	} else if input[ev.InputKindPressedSpace] {
 		if player.IsPlaying {
-			player.StopChannel <- true
-			ev.ClearCallbacks(ev.EventKindTick)
+			player.Stop()
 		} else {
 			ResetHead()
 			currentRow = 0

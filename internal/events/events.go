@@ -28,21 +28,23 @@ var EventMap = map[EventKind]*Event{}
 type InputKind int32
 
 const (
-	InputKindPressedLeft  InputKind = rl.KeyLeft
-	InputKindPressedUp    InputKind = rl.KeyUp
-	InputKindPressedRight InputKind = rl.KeyRight
-	InputKindPressedDown  InputKind = rl.KeyDown
-	InputKindPressedA     InputKind = rl.KeyA
-	InputKindPressedB     InputKind = rl.KeyB
-	InputKindPressedL     InputKind = rl.KeyL
-	InputKindPressedM     InputKind = rl.KeyM
-	InputKindPressedR     InputKind = rl.KeyR
-	InputKindPressedSpace InputKind = rl.KeySpace
-	InputKindDir          InputKind = 266
+	InputKindPressedLeft     InputKind = rl.KeyLeft
+	InputKindPressedUp       InputKind = rl.KeyUp
+	InputKindPressedRight    InputKind = rl.KeyRight
+	InputKindPressedDown     InputKind = rl.KeyDown
+	InputKindPressedA        InputKind = rl.KeyA
+	InputKindPressedB        InputKind = rl.KeyB
+	InputKindPressedL        InputKind = rl.KeyL
+	InputKindPressedM        InputKind = rl.KeyM
+	InputKindPressedR        InputKind = rl.KeyR
+	InputKindPressedSpace    InputKind = rl.KeySpace
+	InputKindPressedPageDown InputKind = rl.KeyPageDown
+	InputKindPressedPageUp   InputKind = rl.KeyPageUp
+	InputKindDir             InputKind = 999
 )
 
 var InputInputs = []InputKind{InputKindPressedLeft, InputKindPressedUp, InputKindPressedRight, InputKindPressedDown,
-	InputKindPressedA, InputKindPressedB, InputKindPressedL, InputKindPressedR, InputKindPressedSpace}
+	InputKindPressedA, InputKindPressedB, InputKindPressedL, InputKindPressedR, InputKindPressedSpace, InputKindDir}
 
 type InputSnapshot map[InputKind]bool
 
@@ -51,7 +53,7 @@ func CalculateInputSnapshot() InputSnapshot {
 	for _, key := range InputInputs {
 		if rl.IsKeyDown(int32(key)) {
 			snapshot[key] = true
-			if key == InputKindPressedLeft || key == InputKindPressedUp || key == InputKindPressedRight || key == InputKindPressedDown {
+			if key == InputKindPressedLeft || key == InputKindPressedUp || key == InputKindPressedRight || key == InputKindPressedDown || key == InputKindPressedPageDown || key == InputKindPressedPageUp {
 				snapshot[InputKindDir] = true
 			}
 		}
@@ -76,14 +78,6 @@ func ClearCallbacks(eventKind EventKind) {
 	if ok {
 		EventMap[eventKind].RegistredCallbacks = []EventCallback{}
 	}
-}
-
-func HasCallbacks(eventKind EventKind) bool {
-	_, ok := EventMap[eventKind]
-	if !ok {
-		return false
-	}
-	return len(EventMap[eventKind].RegistredCallbacks) > 0
 }
 
 func Trigger(kind EventKind, ctx EventContext) bool {

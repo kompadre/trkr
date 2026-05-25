@@ -1,9 +1,11 @@
 package trkr
 
 import (
+	"fmt"
+	"strconv"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"golang.org/x/exp/constraints"
-	"strconv"
 )
 
 const (
@@ -30,6 +32,7 @@ func (p *Phrase) Current() *Step {
 }
 
 type Sample struct {
+	Loaded     bool
 	SampleFile string
 	Sound      rl.Sound
 	RootNote   Note
@@ -39,11 +42,24 @@ type Track struct {
 	CurrentPhrase int
 	Phrases       []Phrase
 	Samples       []Sample
+	Sample        Sample
 	IsMultisample bool
 }
 
 func (t *Track) Current() *Phrase {
 	return &t.Phrases[t.CurrentPhrase]
+}
+
+func (t *Track) Cleanup() {
+	t.Phrases = nil
+	fmt.Printf("Cleaning up track %v\n", t)
+	for i := range t.Samples {
+		if t.Samples[i].Loaded {
+			fmt.Printf("Unloading sound %s\n", t.Samples[i].SampleFile)
+			rl.UnloadSound(t.Samples[i].Sound)
+			t.Samples[i].Loaded = false
+		}
+	}
 }
 
 type Project struct {
@@ -58,10 +74,12 @@ func (p *Project) Current() *Track {
 var CurrentProject *Project
 
 func ResetHead() {
-	currentTrack := &CurrentProject.Tracks[CurrentProject.CurrentTrack]
-	currentTrack.CurrentPhrase = 0
-	currentPhrase := &currentTrack.Phrases[currentTrack.CurrentPhrase]
-	currentPhrase.CurrentStep = -1
+	for trackId := range CurrentProject.Tracks {
+		CurrentProject.Tracks[trackId].CurrentPhrase = 0
+		for phraseId := range CurrentProject.Tracks[trackId].Phrases {
+			CurrentProject.Tracks[trackId].Phrases[phraseId].CurrentStep = -1
+		}
+	}
 }
 
 func Clamp[T constraints.Integer](value T, min T, max T) T {

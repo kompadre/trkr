@@ -3,53 +3,95 @@ package audio
 import (
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"math"
 	"trkr"
-	"trkr/internal/audio/mixer"
 )
 
-var music rl.Music
-var Kick rl.Sound
-var Hat rl.Sound
-var Snare rl.Sound
-var hatVolume float32 = 0.25
-var Sounds []rl.Sound
-var SoundMap map[trkr.Note]*rl.Sound
-var keyPitch float32 = 1.0
-
 func Init() {
+	fmt.Print("Initializing...")
+	initPitchTable()
 	rl.InitAudioDevice() // Initialize audio device
-	Sounds = make([]rl.Sound, 4)
-	SoundMap = make(map[trkr.Note]*rl.Sound)
+}
 
-	Sounds[0] = rl.LoadSound("./assets/music/key.wav")
-	Sounds[1] = rl.LoadSound("./assets/music/kick.wav")
-	Sounds[2] = rl.LoadSound("./assets/music/snare.wav")
-	Sounds[3] = rl.LoadSound("./assets/music/hat.wav")
+// Global or package-level lookup table
+const ALIAS_POOL_SIZE = 2
 
-	SoundMap[26] = &Sounds[0]
-	SoundMap[1] = &Sounds[1]
-	SoundMap[3] = &Sounds[2]
-	SoundMap[5] = &Sounds[3]
+var pitchTable [256]float64
 
+func initPitchTable() {
+	// Pre-calculate pitch multipliers for relative note offsets from -128 to 127
+	for i := 0; i < 256; i++ {
+		relativeNote := float64(i - 128)
+		pitchTable[i] = math.Pow(2.0, relativeNote/12.0)
+	}
+}
+
+func InitializeAliases(trackId int, track *trkr.Track) {
+	track.Sample.Sound = rl.LoadSound(track.Sample.SampleFile)
+	for i := 0; i < ALIAS_POOL_SIZE; i++ {
+		aliasesPool[trackId][i] = rl.LoadSoundAlias(track.Sample.Sound)
+	}
+}
+
+var aliasesPool [3][ALIAS_POOL_SIZE]rl.Sound
+var aliasesPlaying [3][ALIAS_POOL_SIZE]bool
+var nextAlias = [3]int{0, 0, 0}
+
+func GetPitch(note trkr.Note, rootNote trkr.Note) float64 {
+	// Calculate the offset and map it to our 0-255 table index
+	offset := (note - rootNote) + 128
+
+	// Bounds check to prevent panics if notes go wildly out of range
+	if offset < 0 {
+		return pitchTable[0]
+	}
+	if offset > 255 {
+		return pitchTable[255]
+	}
+
+	return pitchTable[offset]
 }
 
 func PlaySound(sound rl.Sound) {
-	if sound.FrameCount == 0 {
-		fmt.Println("sound is empty")
-	}
 	rl.PlaySound(sound)
 }
 
-func CleanUp() {
-	rl.UnloadMusicStream(music)
-	rl.UnloadSound(Kick)
-	rl.CloseAudioDevice()
+func PlaySoundMulti(track int, pitch float32) {
+	nextAlias[track]++
+	if nextAlias[track] >= ALIAS_POOL_SIZE {
+		nextAlias[track] = 0
+	}
+	trackNextAlias := nextAlias[track]
+	if aliasesPlaying[track][trackNextAlias] {
+		rl.StopSound(aliasesPool[track][trackNextAlias])
+	}
+	rl.SetSoundPitch(aliasesPool[track][trackNextAlias], pitch)
+	rl.PlaySound(aliasesPool[track][trackNextAlias])
+	aliasesPlaying[track][trackNextAlias] = true
 }
 
-func Update() {
-	if rl.IsMusicReady(music) {
-		rl.UpdateMusicStream(music)
-		rl.UpdateAudioStream(music.Stream, mixer.ExposedDelayBuffer)
-		fmt.Println("Updating stream")
+func CleanUp() {
+	fmt.Println("Cleaning up audio")
+	for track := range aliasesPool {
+		for i := range aliasesPool[track] {
+			if rl.IsSoundPlaying(aliasesPool[track][i]) {
+				rl.StopSound(aliasesPool[track][i])
+			}
+			if aliasesPool[track][i].FrameCount != 0 {
+				// rl.UnloadSound(aliasesPool[track][i])
+			}
+		}
 	}
+	for trackId := range trkr.CurrentProject.Tracks {
+		if trkr.CurrentProject.Tracks[trackId].Sample.Sound.FrameCount != 0 {
+			rl.UnloadSound(trkr.CurrentProject.Tracks[trackId].Sample.Sound)
+		}
+		for sampleId := range trkr.CurrentProject.Tracks[trackId].Samples {
+			if trkr.CurrentProject.Tracks[trackId].Samples[sampleId].Sound.FrameCount != 0 {
+				rl.UnloadSound(trkr.CurrentProject.Tracks[trackId].Samples[sampleId].Sound)
+			}
+		}
+	}
+
+	rl.CloseAudioDevice()
 }
