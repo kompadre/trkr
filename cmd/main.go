@@ -6,11 +6,10 @@ import (
 	. "trkr"
 	ui "trkr/internal"
 
-	//	"trkr/internal/audio"
 	"trkr/internal/audio"
 	"trkr/internal/events"
 	"trkr/internal/player"
-	track "trkr/internal/views"
+	"trkr/internal/views/track"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -33,22 +32,25 @@ func main() {
 		rl.ToggleFullscreen()
 	}
 
-	//events.RegisterCallback(events.EventKindTick, func(ctx events.EventContext) bool {
-	//	fmt.Printf("Called tick callback. Payload: %d.\n", ctx.EventPayload.(int64))
-	//	return true
-	//})
-	var nextInput = time.Now().Add(time.Millisecond * 250).UnixMilli()
-	//var nextTick = time.Now().Add(time.Second).UnixMilli()
-
 	track.Show()
+	var tickerPause time.Duration = 16 * time.Millisecond
+	timer := time.NewTimer(tickerPause)
+	defer timer.Stop() // Clean up when the playback loop terminates
+	skipInputTriggers := 0
 	for !rl.WindowShouldClose() {
-		ts := time.Now()
-		if nextInput < ts.UnixMilli() {
+		select {
+		case <-timer.C:
+			timer.Reset(tickerPause)
+		}
+
+		if skipInputTriggers > 0 {
+			skipInputTriggers--
+		} else {
 			if events.Trigger(events.EventKindInput, events.EventContext{
 				EventData:    nil,
 				EventPayload: events.CalculateInputSnapshot(),
 			}) {
-				nextInput = ts.Add(time.Millisecond * 250).UnixMilli()
+				skipInputTriggers = 5
 			}
 		}
 
@@ -57,7 +59,7 @@ func main() {
 		if !player.IsPlaying || runtime.GOARCH != "arm64" {
 			events.Trigger(events.EventKindGuiDraw, events.EventContext{
 				EventData:    nil,
-				EventPayload: ts.UnixMilli(),
+				EventPayload: nil,
 			})
 		}
 		rl.EndDrawing()
@@ -66,7 +68,13 @@ func main() {
 
 func demoProject() *Project {
 	currentProject := Project{
-		Tracks: []Track{{Phrases: []Phrase{{}, {}, {}}}, {}, {}}}
+		Tracks: []Track{
+			{Phrases: []Phrase{{}}},
+			{Phrases: []Phrase{{}}},
+			{Phrases: []Phrase{{}}},
+		},
+	}
+
 	currentTrack := &currentProject.Tracks[0]
 	currentTrack.IsMultisample = true
 	currentTrack.Samples = []Sample{
@@ -75,33 +83,13 @@ func demoProject() *Project {
 		{SampleFile: "./assets/music/hat.wav"},
 	}
 	currentPhrase := &currentTrack.Phrases[0]
-	currentPhrase.Steps[0x00].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x04].Notes = [MaxNotesInStep]Note{2, 0}
-	currentPhrase.Steps[0x06].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x08].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x0c].Notes = [MaxNotesInStep]Note{2, 0}
-	currentPhrase.Steps[0x10].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x14].Notes = [MaxNotesInStep]Note{2, 0}
-	currentPhrase.Steps[0x18].Notes = [MaxNotesInStep]Note{1, 0}
 	for i := range currentPhrase.Steps {
-		currentPhrase.Steps[i].Notes[1] = 2
-	}
-	currentPhrase = &currentTrack.Phrases[1]
-	currentPhrase.Steps[0x00].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x04].Notes = [MaxNotesInStep]Note{2, 0}
-	currentPhrase.Steps[0x06].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x08].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x0c].Notes = [MaxNotesInStep]Note{2, 0}
-	currentPhrase.Steps[0x10].Notes = [MaxNotesInStep]Note{1, 0}
-	currentPhrase.Steps[0x14].Notes = [MaxNotesInStep]Note{2, 0}
-	currentPhrase.Steps[0x18].Notes = [MaxNotesInStep]Note{1, 0}
-	for i := range currentPhrase.Steps {
-		currentPhrase.Steps[i].Notes[1] = 2
-	}
-
-	currentPhrase = &currentTrack.Phrases[2]
-	for i := range currentPhrase.Steps {
-		currentPhrase.Steps[i].Notes[0] = 2
+		if i%4 == 0 {
+			currentPhrase.Steps[i].Notes[0] = 1
+		}
+		if i%2 == 0 {
+			currentPhrase.Steps[i].Notes[1] = 2
+		}
 	}
 
 	currentTrack = &currentProject.Tracks[1]
@@ -110,84 +98,10 @@ func demoProject() *Project {
 		SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2"),
 	}
 
-	////currentPhrase = &currentTrack.Phrases[0]
-	////currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), 0, 0}
-	////currentPhrase.Steps[4].Notes = [MaxNotesInStep]Note{0, ParseNote("D#2"), 0}
-	////currentPhrase.Steps[8].Notes = [MaxNotesInStep]Note{0, 0, ParseNote("G 2")}
-	////currentPhrase.Steps[12].Notes = [MaxNotesInStep]Note{ParseNote("D#2"), 0, 0}
-	////currentPhrase.Steps[16].Notes = [MaxNotesInStep]Note{0, ParseNote("C 2"), 0}
-	////currentPhrase.Steps[20].Notes = [MaxNotesInStep]Note{0, 0, ParseNote("D#2")}
-	////currentPhrase.Steps[24].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), 0, 0}
-	//
-	//currentPhrase = &Phrase{}
-	//currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), 0, 0}
-	//currentPhrase.Steps[4].Notes = [MaxNotesInStep]Note{0, ParseNote("F 2"), 0}
-	//currentPhrase.Steps[8].Notes = [MaxNotesInStep]Note{0, 0, ParseNote("G#2")}
-	//currentPhrase.Steps[12].Notes = [MaxNotesInStep]Note{ParseNote("F 2"), 0, 0}
-	//currentPhrase.Steps[16].Notes = [MaxNotesInStep]Note{0, ParseNote("C 2"), 0}
-	//currentPhrase.Steps[20].Notes = [MaxNotesInStep]Note{0, 0, ParseNote("F 2")}
-	//currentPhrase.Steps[24].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), 0, 0}
-	//currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
-	currentPhrase = &Phrase{}
-	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("D#2"), ParseNote("G 2"), ParseNote("A#2")}
-	currentPhrase.Steps[16].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("D#2"), ParseNote("G 2"), ParseNote("G#2")}
-	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
-	currentPhrase = &Phrase{}
-	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("D#2"), ParseNote("G 2"), ParseNote("A#2")}
-	currentPhrase.Steps[16].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("D#2"), ParseNote("G 2"), ParseNote("D 3")}
-	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
-	currentPhrase = &Phrase{}
-	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("D 2"), ParseNote("F 2"), ParseNote("A#2")}
-	currentPhrase.Steps[16].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("F 2"), ParseNote("G#2"), ParseNote("A#2")}
-	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
-	currentPhrase = &Phrase{}
-	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 2"), ParseNote("D 2"), ParseNote("F 2"), ParseNote("A#2")}
-	currentPhrase.Steps[16].Notes = [MaxNotesInStep]Note{ParseNote("D 2"), ParseNote("F 2"), ParseNote("G 2"), ParseNote("A#2")}
-	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
 	currentTrack = &currentProject.Tracks[2]
 	currentTrack.IsMultisample = false
 	currentTrack.Sample = Sample{
 		SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2"),
 	}
-	currentPhrase = &Phrase{}
-	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 4")}
-	currentPhrase.Steps[1].Notes = [MaxNotesInStep]Note{ParseNote("G 2")}
-	currentPhrase.Steps[4].Notes = [MaxNotesInStep]Note{ParseNote("F 2")}
-	currentPhrase.Steps[5].Notes = [MaxNotesInStep]Note{ParseNote("D 2")}
-	currentPhrase.Steps[8].Notes = [MaxNotesInStep]Note{ParseNote("G#2")}
-	currentPhrase.Steps[9].Notes = [MaxNotesInStep]Note{ParseNote("G 2")}
-	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
-	currentPhrase = &Phrase{}
-	currentPhrase.Steps[0].Notes = [MaxNotesInStep]Note{ParseNote("C 4")}
-	currentPhrase.Steps[1].Notes = [MaxNotesInStep]Note{ParseNote("C 5")}
-	currentPhrase.Steps[4].Notes = [MaxNotesInStep]Note{ParseNote("C 4")}
-	currentPhrase.Steps[5].Notes = [MaxNotesInStep]Note{ParseNote("C 3")}
-	currentPhrase.Steps[8].Notes = [MaxNotesInStep]Note{ParseNote("C 4")}
-	currentPhrase.Steps[9].Notes = [MaxNotesInStep]Note{ParseNote("C 5")}
-	currentTrack.Phrases = append(currentTrack.Phrases, *currentPhrase)
-
-	//currentPhrase.Steps[24].Notes = [MaxNotesInStep]Note{0, 0, ParseNote("C 4")}
-	////currentPhrase.Steps[6].Notes = [MaxNotesInStep]Note{0, ParseNote("C"), 0}
-	////currentPhrase.Steps[8].Notes = [MaxNotesInStep]Note{ParseNote("D"), 0, 0}
-	////currentPhrase.Steps[10].Notes = [MaxNotesInStep]Note{0, ParseNote("D#2"), 0}
-	////currentPhrase.Steps[12].Notes = [MaxNotesInStep]Note{ParseNote("D#2"), 0, 0}
-	//currentPhrase = &currentTrack.Phrases[1]
-	//currentPhrase.Steps[17].Notes = [MaxNotesInStep]Note{22, 0}
-	//currentPhrase.Steps[21].Notes = [MaxNotesInStep]Note{23, 0}
-	//currentPhrase.Steps[23].Notes = [MaxNotesInStep]Note{12, 0, 17}
-	//currentPhrase.Steps[24].Notes = [MaxNotesInStep]Note{0, 16, 0}
-	//currentPhrase.Steps[25].Notes = [MaxNotesInStep]Note{24, 0, 20}
-	//currentPhrase = &currentTrack.Phrases[3]
-	//currentPhrase.Steps[0x01].Notes = [MaxNotesInStep]Note{14, 0}
-	//currentPhrase = &currentTrack.Phrases[4]
-	//currentPhrase.Steps[23].Notes = [MaxNotesInStep]Note{12, 0, 17}
-	//currentPhrase.Steps[24].Notes = [MaxNotesInStep]Note{0, 14, 0}
-	//currentPhrase.Steps[25].Notes = [MaxNotesInStep]Note{0, 0, 21}
 	return &currentProject
 }

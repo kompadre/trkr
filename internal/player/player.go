@@ -1,9 +1,8 @@
 package player
 
 import (
-	//	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
-	//	"golang.org/x/exp/rand"
+	"golang.org/x/exp/rand"
 	"time"
 	. "trkr"
 	"trkr/internal/audio"
@@ -50,7 +49,7 @@ func Play() {
 				phrase.CurrentStep = 0
 			}
 
-			for noteId, note := range phrase.Current().Notes {
+			for _, note := range phrase.Current().Notes {
 				if note == 0 {
 					continue
 				}
@@ -59,20 +58,23 @@ func Play() {
 					pitch := float32(audio.GetPitch(note, track.Sample.RootNote))
 					audio.PlaySoundMulti(trackId, pitch)
 				} else {
-					audio.PlaySound(track.Samples[noteId].Sound)
+					if note == 2 {
+						rl.SetSoundVolume(track.Samples[note-1].Sound, rand.Float32())
+					}
+					audio.PlaySound(track.Samples[note-1].Sound)
 				}
 			}
 		}
 		return true
-	})
+	}, "Music Tick")
 
-	tickerPause := (time.Minute / BeatsPerMinute) / 4
+	var tickerPause time.Duration = time.Minute / time.Duration((BeatsPerMinute)*4.0)
 	IsPlaying = true
 	timer := time.NewTimer(tickerPause)
 	defer timer.Stop() // Clean up when the playback loop terminates
 
 	for {
-		go ev.Trigger(ev.EventKindTick, ev.EventContext{})
+		ev.Trigger(ev.EventKindTick, ev.EventContext{})
 
 		select {
 		case <-timer.C:

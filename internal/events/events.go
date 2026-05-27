@@ -1,6 +1,9 @@
 package events
 
-import rl "github.com/gen2brain/raylib-go/raylib"
+import (
+	"fmt"
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
 
 type EventKind int
 
@@ -21,6 +24,7 @@ type EventCallback func(EventContext) bool
 type Event struct {
 	EventKind
 	RegistredCallbacks []EventCallback
+	Descriptions       []string
 }
 
 var EventMap = map[EventKind]*Event{}
@@ -40,11 +44,13 @@ const (
 	InputKindPressedSpace    InputKind = rl.KeySpace
 	InputKindPressedPageDown InputKind = rl.KeyPageDown
 	InputKindPressedPageUp   InputKind = rl.KeyPageUp
+	InputKindPressedEnter    InputKind = rl.KeyEnter
 	InputKindDir             InputKind = 999
 )
 
 var InputInputs = []InputKind{InputKindPressedLeft, InputKindPressedUp, InputKindPressedRight, InputKindPressedDown,
-	InputKindPressedA, InputKindPressedB, InputKindPressedL, InputKindPressedR, InputKindPressedSpace, InputKindDir}
+	InputKindPressedA, InputKindPressedB, InputKindPressedL, InputKindPressedR, InputKindPressedSpace, InputKindDir, InputKindPressedPageDown,
+	InputKindPressedPageUp, InputKindPressedEnter}
 
 type InputSnapshot map[InputKind]bool
 
@@ -61,15 +67,17 @@ func CalculateInputSnapshot() InputSnapshot {
 	return snapshot
 }
 
-func RegisterCallback(eventKind EventKind, callback EventCallback) {
+func RegisterCallback(eventKind EventKind, callback EventCallback, callbackDescription string) {
 	event, ok := EventMap[eventKind]
 	if !ok {
 		EventMap[eventKind] = &Event{
 			EventKind:          eventKind,
 			RegistredCallbacks: []EventCallback{callback},
+			Descriptions:       []string{callbackDescription},
 		}
 	} else {
 		event.RegistredCallbacks = append(event.RegistredCallbacks, callback)
+		event.Descriptions = append(event.Descriptions, callbackDescription)
 	}
 }
 
@@ -80,14 +88,27 @@ func ClearCallbacks(eventKind EventKind) {
 	}
 }
 
+func PopCallback(eventKind EventKind) {
+	ev, ok := EventMap[eventKind]
+	if ok && len(ev.RegistredCallbacks) > 0 {
+		ev.RegistredCallbacks[len(ev.RegistredCallbacks)-1] = nil
+		ev.RegistredCallbacks = ev.RegistredCallbacks[:len(ev.RegistredCallbacks)-1]
+		fmt.Printf("Popping %s event.\n", ev.Descriptions[len(ev.Descriptions)-1])
+		ev.Descriptions = ev.Descriptions[:len(ev.Descriptions)-1]
+	}
+}
+
 func Trigger(kind EventKind, ctx EventContext) bool {
-	event, ok := EventMap[kind]
+	ev, ok := EventMap[kind]
 	if !ok {
 		return false
 	}
 	result := false
-	for _, callback := range event.RegistredCallbacks {
-		result = result || callback(ctx)
+	for i := len(ev.RegistredCallbacks) - 1; i >= 0; i-- {
+		result = ev.RegistredCallbacks[i](ctx)
+		if result {
+			break
+		}
 	}
 	return result
 }

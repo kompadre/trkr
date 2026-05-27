@@ -13,8 +13,9 @@ const (
 	MaxStepsInPhrase  = 32
 	MaxEffectsInStep  = 4
 	SemitonesInOctave = 12
-	BeatsPerMinute    = 105
 )
+
+var BeatsPerMinute = 105
 
 type Note uint8
 type Effect uint8
