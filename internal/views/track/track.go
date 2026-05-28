@@ -19,6 +19,9 @@ var UiTrackId int
 var UiPhraseId int
 var SyncToPlay bool
 var LastNote Note = Note(37)
+var MovementLastDir ev.InputKind
+var MovementLastDirRepeated int
+var MovementMultiplier int = 1
 
 const (
 	RowsInScreen = 14
@@ -88,6 +91,21 @@ func Draw() bool {
 func handleInput(input ev.InputSnapshot) bool {
 	result := false
 	currentTrack := &CurrentProject.Tracks[UiTrackId]
+
+	// Turbo
+	if input[ev.InputKindDir] && input[MovementLastDir] {
+		fmt.Printf("Repeat detected.\n")
+		MovementLastDirRepeated++
+		if MovementLastDirRepeated > 8 {
+			MovementMultiplier = 5
+		} else if MovementLastDirRepeated > 3 {
+			MovementMultiplier = 3
+		}
+	} else {
+		MovementMultiplier = 1
+		MovementLastDirRepeated = 0
+	}
+
 	if input[ev.InputKindPressedA] && input[ev.InputKindPressedB] && input[ev.InputKindPressedDown] {
 		if UiPhraseId == len(currentTrack.Phrases)-1 {
 			fmt.Printf("Adding a new phrase!\n")
@@ -141,13 +159,17 @@ func handleInput(input ev.InputSnapshot) bool {
 		result = true
 	} else if input[ev.InputKindDir] {
 		if input[ev.InputKindPressedDown] {
-			currentRow = Clamp(currentRow+1, 0, MaxStepsInPhrase-1)
+			currentRow = Clamp(currentRow+MovementMultiplier, 0, MaxStepsInPhrase-1)
+			MovementLastDir = ev.InputKindPressedDown
 		} else if input[ev.InputKindPressedUp] {
-			currentRow = Clamp(currentRow-1, 0, MaxStepsInPhrase-1)
+			currentRow = Clamp(currentRow-MovementMultiplier, 0, MaxStepsInPhrase-1)
+			MovementLastDir = ev.InputKindPressedUp
 		} else if input[ev.InputKindPressedLeft] {
-			currentCol = Clamp(currentCol-1, 0, len(columnWidths)-1)
+			currentCol = Clamp(currentCol-MovementMultiplier, 0, len(columnWidths)-1)
+			MovementLastDir = ev.InputKindPressedLeft
 		} else if input[ev.InputKindPressedRight] {
-			currentCol = Clamp(currentCol+1, 0, len(columnWidths)-1)
+			currentCol = Clamp(currentCol+MovementMultiplier, 0, len(columnWidths)-1)
+			MovementLastDir = ev.InputKindPressedRight
 		}
 		result = true
 	} else if input[ev.InputKindPressedSpace] {
