@@ -3,3 +3,5 @@
 /trkr.arm64
 /go.mod
 /go.sum
+/autosave.json
+.idea/

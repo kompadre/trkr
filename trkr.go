@@ -1,11 +1,12 @@
 package trkr
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
-
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"golang.org/x/exp/constraints"
+	"os"
+	"strconv"
 )
 
 const (
@@ -24,27 +25,32 @@ type Step struct {
 	Effects [MaxEffectsInStep]Effect
 }
 type Phrase struct {
-	CurrentStep int
+	CurrentStep int `json:"-"`
 	Steps       [MaxStepsInPhrase]Step
 }
 
-func (p *Phrase) Current() *Step {
-	return &p.Steps[p.CurrentStep]
-}
-
 type Sample struct {
-	Loaded     bool
+	Loaded     bool `json:"-"`
 	SampleFile string
-	Sound      rl.Sound
+	Sound      rl.Sound `json:"-"`
 	RootNote   Note
 }
 
 type Track struct {
-	CurrentPhrase int
+	CurrentPhrase int `json:"-"`
 	Phrases       []Phrase
 	Samples       []Sample
 	Sample        Sample
 	IsMultisample bool
+}
+
+type Project struct {
+	CurrentTrack int `json:"-"`
+	Tracks       []Track
+}
+
+func (p *Phrase) Current() *Step {
+	return &p.Steps[p.CurrentStep]
 }
 
 func (t *Track) Current() *Phrase {
@@ -61,11 +67,6 @@ func (t *Track) Cleanup() {
 			t.Samples[i].Loaded = false
 		}
 	}
-}
-
-type Project struct {
-	CurrentTrack int
-	Tracks       []Track
 }
 
 func (p *Project) Current() *Track {
@@ -101,6 +102,33 @@ func ParseNote(annotatedNote string) Note {
 		}
 	}
 	return 0
+}
+
+func LoadProject(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if err := json.NewDecoder(file).Decode(CurrentProject); err != nil {
+		return err
+	}
+	return nil
+}
+
+func SaveProject(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(CurrentProject)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 var Notation = [SemitonesInOctave]string{"C ", "C#", "D ", "D#", "E ", "F ", "F#", "G ", "G#", "A ", "A#", "B "}

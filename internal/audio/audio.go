@@ -14,7 +14,7 @@ func Init() {
 }
 
 // Global or package-level lookup table
-const ALIAS_POOL_SIZE = 2
+const ALIAS_POOL_SIZE = 8
 
 var pitchTable [256]float64
 

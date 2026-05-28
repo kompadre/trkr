@@ -1,10 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 	. "trkr"
-	ui "trkr/internal"
+	ui "trkr/internal/ui"
 
 	"trkr/internal/audio"
 	"trkr/internal/events"
@@ -12,6 +13,7 @@ import (
 	"trkr/internal/views/track"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"os"
 )
 
 func main() {
@@ -21,8 +23,20 @@ func main() {
 	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "internal v0.0")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(30)
-
-	CurrentProject = demoProject()
+	defer func() {
+		err := SaveProject("autosave.json")
+		if err != nil {
+			fmt.Printf("Error autosaving: %v.\n", err)
+		}
+	}()
+	_, err := os.Stat("autosave.json")
+	if err != nil {
+		CurrentProject = demoProject()
+	} else {
+		project := Project{}
+		CurrentProject = &project
+		LoadProject("autosave.json")
+	}
 
 	if runtime.GOARCH == "arm64" {
 		opts := ui.GetOptions()
