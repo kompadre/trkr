@@ -29,6 +29,12 @@ type Phrase struct {
 	Steps       [MaxStepsInPhrase]Step
 }
 
+func (p *Phrase) Clone() Phrase {
+	result := Phrase{}
+	result = *p
+	return result
+}
+
 type Sample struct {
 	Loaded     bool `json:"-"`
 	SampleFile string
@@ -37,6 +43,7 @@ type Sample struct {
 }
 
 type Track struct {
+	Id            uint8
 	CurrentPhrase int `json:"-"`
 	Phrases       []Phrase
 	Samples       []Sample

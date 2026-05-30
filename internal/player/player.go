@@ -2,7 +2,7 @@ package player
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"golang.org/x/exp/rand"
+	// "golang.org/x/exp/rand"
 	"time"
 	. "trkr"
 	"trkr/internal/audio"
@@ -58,10 +58,10 @@ func Play() {
 					pitch := float32(audio.GetPitch(note, track.Sample.RootNote))
 					audio.PlaySoundMulti(trackId, pitch)
 				} else {
-					if note == 2 {
-						rl.SetSoundVolume(track.Samples[note-1].Sound, rand.Float32())
-					}
-					audio.PlaySound(track.Samples[note-1].Sound)
+					//if note == 2 {
+					//rl.SetSoundVolume(track.Samples[note-1].Sound, rand.Float32())
+					//}
+					audio.PlaySound(track.Samples[Clamp(int(note-1), 0, len(track.Samples)-1)].Sound)
 				}
 			}
 		}

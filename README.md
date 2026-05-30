@@ -19,15 +19,29 @@ To build `trkr` from source, ensure you have Go installed on your system along w
 On Debian/Ubuntu systems:
 
 sudo apt update
-sudo apt install libasound2-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev
+sudo apt install libasound2-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev # (for default, X11 Linux amd64 build)
 
-### Installation
+### Building
 
 Clone the repository and build or run the project:
 
 git clone https://github.com/kompadre/trkr.git
-cd trkr
-go run trkr.go
+```bash
+make trkr # To get Linux amd64 binary```
+or ...
+```bash
+make trkr-wayland # to get Linux amd64 with wayland binary```
+or ...
+```bash
+make trkr-arm64 # to get Linux arm64 binary that should run on Linux handhelds like ANBERNIC```
+or ...
+```bash
+make trkr-x64.exe # to get a windows executable```
+or ...
+```bash
+make clean # to remove previously built executables```
+
+Note: building other than Linux amd64 target may have more requirements. Building arm64 requires Docker.
 
 ---
 
@@ -46,6 +60,7 @@ Notes and values are manipulated directly using action button modifiers rather t
 
 * Change Note: Hold A + `Up / Down / Left / Right Arrow` to cycle through and change the current note value under the cursor.
 * Add Phrase: Press A + B + `Down Arrow` to append a new phrase.
+* Clone Phrase: Press A + B + R + `Down Arrow`. It will append a copy of current phrase at the end.
 * Remove Phrase: Press A + B + `Up Arrow` to delete the last phrase.
 
 ---

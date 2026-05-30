@@ -27,6 +27,14 @@ const (
 	RowsInScreen = 14
 )
 
+func NewTrack(id uint8) *Track {
+	result := &Track{}
+	result.Id = id
+	result.IsMultisample = false
+	result.Phrases = make([]Phrase, 1)
+	return result
+}
+
 func Show() {
 	ev.RegisterCallback(ev.EventKindInput, func(ctx ev.EventContext) bool {
 		return handleInput(ctx.EventPayload.(ev.InputSnapshot))
@@ -94,7 +102,6 @@ func handleInput(input ev.InputSnapshot) bool {
 
 	// Turbo
 	if input[ev.InputKindDir] && input[MovementLastDir] {
-		fmt.Printf("Repeat detected.\n")
 		MovementLastDirRepeated++
 		if MovementLastDirRepeated > 8 {
 			MovementMultiplier = 5
@@ -109,8 +116,12 @@ func handleInput(input ev.InputSnapshot) bool {
 	if input[ev.InputKindPressedA] && input[ev.InputKindPressedB] && input[ev.InputKindPressedDown] {
 		if UiPhraseId == len(currentTrack.Phrases)-1 {
 			fmt.Printf("Adding a new phrase!\n")
-			currentTrack.Phrases = append(currentTrack.Phrases, Phrase{})
-			UiPhraseId++
+			if input[ev.InputKindPressedR] {
+				currentTrack.Phrases = append(currentTrack.Phrases, CurrentProject.Tracks[UiTrackId].Phrases[UiPhraseId].Clone())
+			} else {
+				currentTrack.Phrases = append(currentTrack.Phrases, Phrase{})
+			}
+			UiPhraseId = len(currentTrack.Phrases) - 1
 			return true
 		}
 	} else if input[ev.InputKindPressedA] && input[ev.InputKindPressedB] && input[ev.InputKindPressedUp] {

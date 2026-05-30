@@ -20,7 +20,7 @@ func main() {
 
 	audio.Init()
 	defer audio.CleanUp()
-	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "internal v0.0")
+	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "trkr v.0.0.1")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(30)
 	defer func() {

@@ -56,18 +56,18 @@ func PlaySound(sound rl.Sound) {
 	rl.PlaySound(sound)
 }
 
-func PlaySoundMulti(track int, pitch float32) {
-	nextAlias[track]++
-	if nextAlias[track] >= ALIAS_POOL_SIZE {
-		nextAlias[track] = 0
+func PlaySoundMulti(trackId int, pitch float32) {
+	nextAlias[trackId]++
+	if nextAlias[trackId] >= ALIAS_POOL_SIZE {
+		nextAlias[trackId] = 0
 	}
-	trackNextAlias := nextAlias[track]
-	if aliasesPlaying[track][trackNextAlias] {
-		rl.StopSound(aliasesPool[track][trackNextAlias])
+	trackNextAlias := nextAlias[trackId]
+	if aliasesPlaying[trackId][trackNextAlias] {
+		rl.StopSound(aliasesPool[trackId][trackNextAlias])
 	}
-	rl.SetSoundPitch(aliasesPool[track][trackNextAlias], pitch)
-	rl.PlaySound(aliasesPool[track][trackNextAlias])
-	aliasesPlaying[track][trackNextAlias] = true
+	rl.SetSoundPitch(aliasesPool[trackId][trackNextAlias], pitch)
+	rl.PlaySound(aliasesPool[trackId][trackNextAlias])
+	aliasesPlaying[trackId][trackNextAlias] = true
 }
 
 func CleanUp() {

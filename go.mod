@@ -2,7 +2,7 @@ module trkr
 
 go 1.23.1
 
-replace github.com/gen2brain/raylib-go/raylib => ../raylib-go/raylib
+//replace github.com/gen2brain/raylib-go/raylib => ../raylib-go/raylib
 //replace github.com/gen2brain/raylib-go/raygui => ../raylib-go/raygui
 //replace github.com/gen2brain/raylib-go/easings => ../raylib-go/easings
 //replace github.com/gen2brain/raylib-go/physics => ../raylib-go/physics
