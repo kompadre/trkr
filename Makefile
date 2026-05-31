@@ -16,6 +16,7 @@ $(DOCKER_IMAGE): $(DOCKERFILE)
 	docker build -t $(DOCKER_IMAGE) -f $(DOCKERFILE) .
 	@touch $(DOCKER_IMAGE)
 
+
 $(BINARY_ARM64): $(SRCS) $(DOCKER_IMAGE)
 	docker run --rm \
 		-v "$(shell pwd)":/workspace/trkr \
@@ -27,8 +28,13 @@ $(BINARY_ARM64): $(SRCS) $(DOCKER_IMAGE)
 		-e GOARCH=arm64 \
 		-e CGO_ENABLED=1 \
 		-e CC=aarch64-linux-gnu-gcc \
+		-e PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+		-e CGO_CFLAGS="-DGRAPHICS_API_OPENGL_ES2 -DPLATFORM_DESKTOP_SDL" \
+		-e CGO_LDFLAGS="-lm" \
 		$(DOCKER_IMAGE) \
-		go build -o $(BINARY_ARM64) ./cmd
+		go build -a -tags "sdl es2" -o $(BINARY_ARM64) ./cmd
+
+#		go build -o $(BINARY_ARM64) -tags linux,sdl,es2 ./cmd
 
 $(BINARY_WIN64): $(SRCS)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -o $(BINARY_WIN64) ./cmd

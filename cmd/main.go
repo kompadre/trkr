@@ -20,9 +20,11 @@ func main() {
 
 	audio.Init()
 	defer audio.CleanUp()
+	rl.SetTargetFPS(30)
 	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "trkr v.0.0.1")
 	defer rl.CloseWindow()
-	rl.SetTargetFPS(30)
+	// Force SDL to negotiate an OpenGL ES 3.0 context instead of Desktop OpenGL
+
 	defer func() {
 		err := SaveProject("autosave.json")
 		if err != nil {

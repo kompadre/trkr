@@ -1,16 +1,33 @@
-FROM debian:trixie
-RUN dpkg --add-architecture arm64
+FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    build-essential \
-    crossbuild-essential-arm64 \
-    golang-go \
+FROM debian:bookworm-slim
+
+RUN dpkg --add-architecture arm64 && \
+    apt-get update && apt-get install -y \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    libc6-dev-arm64-cross \
+    # The native package-config cross wrapper tool
     pkg-config \
-    # Install target arm64 libraries here
+    # Add whatever dependencies it needs under the arm64 suffix
     libsdl2-dev:arm64 \
-    libxkbcommon-dev:arm64 \
+    libx11-dev:arm64 \
+    libxrandr-dev:arm64 \
+    libxinerama-dev:arm64 \
+    libxcursor-dev:arm64 \
+    libxi-dev:arm64 \
+    libgl1-mesa-dev:arm64 \
+    git \
+    make \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install modern Go 1.23.1 (or latest)
+ENV GO_VERSION=1.23.1
+RUN curl -sL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+
+# Add Go to PATH
+ENV PATH=$PATH:/usr/local/go/bin
 
 ENV CGO_ENABLED=1
 ENV GOOS=linux
