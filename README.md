@@ -2,6 +2,8 @@
 
 `trkr` is a lightweight, low-overhead music tracker built in Go using the raylib library. Designed with the constraints and aesthetics of classic handheld consoles like the Game Boy in mind, `trkr` provides a streamlined, grid-based interface for sequencing phrases and tracks using minimal controls.
 
+![Screenshot](screenshot.png)
+
 ## Features
 
 - Retro-Optimized Design: Tailored to run efficiently and intuitively on Game Boy-like devices or handheld emulators.

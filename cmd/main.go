@@ -66,6 +66,7 @@ func main() {
 	defer timer.Stop() // Clean up when the playback loop terminates
 	skipInputTriggers := 0
 	ui.RootElement = rootElement
+	ui.Font = rl.LoadFont("./assets/fonts/Montserrat-Bold.ttf")
 	drawPayload := &ui.ElementDrawPayload{}
 	for !rl.WindowShouldClose() {
 		select {

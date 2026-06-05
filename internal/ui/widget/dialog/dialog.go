@@ -29,14 +29,13 @@ func (d Dialog) Show() {}
 
 func (d Dialog) Hide() {}
 
-func (d Dialog) HandleInput(input ev.InputSnapshot, el *ui.Element) bool { return false }
+func (d *Dialog) HandleInput(input ev.InputSnapshot, el *ui.Element) bool { return false }
 
 func (d *Dialog) Draw(ctx ev.EventContext, hasFocus bool) bool {
 	bgcolor := ui.WindowBg2
 	fgcolor := ui.WindowFg2
-	labelPreffix := " "
 
 	rl.DrawRectangle(0, 0, int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), bgcolor)
 	rl.DrawText(d.Label, 10, 10, 20, fgcolor)
 	return true
-}
+

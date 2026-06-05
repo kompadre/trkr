@@ -49,7 +49,7 @@ func Show() {
 func DrawSettings(ctx ev.EventContext, hasFocus bool) bool {
 	p := ctx.EventPayload.(*ui.ElementDrawPayload)
 	rl.DrawRectangle(p.Left, p.Top, p.Element.Width, p.Element.Height, ui.WindowBg1)
-	rl.DrawText("Settings", p.Left, p.Top, 20, ui.WindowFg1)
+	ui.DrawText("Settings", p.Left, p.Top, 20, ui.WindowFg1)
 	return false
 }
 

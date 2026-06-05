@@ -203,7 +203,13 @@ var (
 	WindowFg2   = c.RGBA{220, 230, 210, 255}
 	WindowFg3   = c.RGBA{250, 250, 250, 255}
 	TrackerLine = c.RGBA{250, 190, 190, 100}
+
+	Font rl.Font
 )
+
+func DrawText(text string, left int32, top int32, size int32, color c.RGBA) {
+	rl.DrawTextEx(Font, text, rl.NewVector2(float32(left), float32(top)), float32(size), 1, color)
+}
 
 func GetSpareId() uint16 {
 	lastUniqueId = lastUniqueId + 1

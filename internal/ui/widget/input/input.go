@@ -76,11 +76,32 @@ func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
 		preffix = ">"
 	}
 
-	rl.DrawText(preffix+in.Label, left, top, 20, fgcolor)
+	ui.DrawText(preffix+in.Label, left, top+2, 20, fgcolor)
 	rl.DrawRectangle(left+80, top, width-80, height, bgcolor)
-	rl.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
+	var extraLeft int32 = 85
+	var underLeft int32
+	for i := range 8 {
+		if in.Value[i] == 'I' {
+			extraLeft += 0
+		}
+		ui.DrawText(string(in.Value[i]), left+extraLeft, top+2, 20, fgcolor)
+		if i == int(in.FocusedChar) {
+			underLeft = extraLeft
+		}
+
+		if in.Value[i] == 'I' {
+			extraLeft += 8
+		} else {
+			extraLeft += 14
+		}
+
+		if in.Value[i] == 0 {
+			break
+		}
+	}
+	// ui.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
 	if hasFocus {
-		rl.DrawText("_", left+85+int32(in.FocusedChar*14), top+6, 20, fgcolor)
+		rl.DrawText("_", left+underLeft, top+6, 20, fgcolor)
 	}
 	return false
 }
