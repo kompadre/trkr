@@ -3,10 +3,11 @@ package track
 import (
 	"fmt"
 	. "trkr"
+	"trkr/internal/events"
 	ev "trkr/internal/events"
 	"trkr/internal/player"
 	ui "trkr/internal/ui"
-	"trkr/internal/views/settings"
+	"trkr/internal/ui/view/settings"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -22,6 +23,7 @@ var LastNote Note = Note(37)
 var MovementLastDir ev.InputKind
 var MovementLastDirRepeated int
 var MovementMultiplier int = 1
+var uiElem *ui.Element
 
 const (
 	RowsInScreen = 14
@@ -36,16 +38,26 @@ func NewTrack(id uint8) *Track {
 }
 
 func Show() {
-	ev.RegisterCallback(ev.EventKindInput, func(ctx ev.EventContext) bool {
-		return handleInput(ctx.EventPayload.(ev.InputSnapshot))
-	}, "Tracker Input")
-
-	ev.RegisterCallback(ev.EventKindGuiDraw, func(ctx ev.EventContext) bool {
-		return Draw()
-	}, "Tracker Draw")
+	uiElem.Visible = true
 }
 
-func Draw() bool {
+func Hide() {
+	uiElem.Visible = false
+}
+
+func GetElement() *ui.Element {
+	return uiElem
+}
+
+func Create(rootElement *ui.Element) {
+	core := ui.NewElementCoreInstance(Show, Hide, handleInput, Draw)
+	uiElem = ui.NewElement(10, 10, int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), core, rootElement)
+}
+
+func Draw(ctx events.EventContext, hasFocus bool) bool {
+	if !uiElem.Visible {
+		return false
+	}
 	var currentTrack Track
 	var currentPhrase Phrase
 
@@ -93,10 +105,14 @@ func Draw() bool {
 	rl.DrawText(fmt.Sprintf("STP: %02d", currentRow), 150, bottomOffset, 10, rl.Maroon)
 	rl.DrawText(fmt.Sprintf("STP: %02d", CurrentProject.Current().Current().CurrentStep), 200, bottomOffset, 10, rl.Maroon)
 
-	return true
+	return false
 }
 
-func handleInput(input ev.InputSnapshot) bool {
+func handleInput(input ev.InputSnapshot, el *ui.Element) bool {
+	if !uiElem.Visible {
+		return false
+	}
+
 	result := false
 	currentTrack := &CurrentProject.Tracks[UiTrackId]
 
@@ -122,7 +138,7 @@ func handleInput(input ev.InputSnapshot) bool {
 				currentTrack.Phrases = append(currentTrack.Phrases, Phrase{})
 			}
 			UiPhraseId = len(currentTrack.Phrases) - 1
-			return true
+			result = true
 		}
 	} else if input[ev.InputKindPressedA] && input[ev.InputKindPressedB] && input[ev.InputKindPressedUp] {
 		if UiPhraseId == len(currentTrack.Phrases)-1 && !player.IsPlaying {
@@ -134,7 +150,7 @@ func handleInput(input ev.InputSnapshot) bool {
 			} else {
 				UiPhraseId--
 			}
-			return true
+			result = true
 		}
 	} else if input[ev.InputKindPressedR] && input[ev.InputKindDir] {
 		if input[ev.InputKindPressedLeft] {
@@ -196,6 +212,5 @@ func handleInput(input ev.InputSnapshot) bool {
 		settings.Show()
 		result = true
 	}
-
 	return result
 }

@@ -7,10 +7,16 @@ import (
 	. "trkr"
 	"trkr/internal/audio"
 	ev "trkr/internal/events"
+	"trkr/internal/ui"
 )
 
 var StopChannel chan bool
 var IsPlaying bool
+var uiElem *ui.Element
+
+func GetElem() *ui.Element {
+	return uiElem
+}
 
 func Stop() {
 	if IsPlaying {
@@ -23,6 +29,10 @@ func Play() {
 	if IsPlaying {
 		return
 	}
+	if uiElem == nil {
+		uiElem = ui.NewElement(0, 0, 0, 0, nil, nil)
+	}
+
 	StopChannel = make(chan bool)
 	for trackId := range CurrentProject.Tracks {
 		if !CurrentProject.Tracks[trackId].IsMultisample {
@@ -66,7 +76,7 @@ func Play() {
 			}
 		}
 		return true
-	}, "Music Tick")
+	}, uiElem.ID)
 
 	var tickerPause time.Duration = time.Minute / time.Duration((BeatsPerMinute)*4.0)
 	IsPlaying = true

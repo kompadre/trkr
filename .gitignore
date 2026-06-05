@@ -7,3 +7,4 @@
 /autosave.json
 /.go-*
 /.idea
+/.cross-compiler-arm64-built

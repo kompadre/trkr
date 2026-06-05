@@ -10,6 +10,7 @@ import (
 func Init() {
 	fmt.Print("Initializing...")
 	initPitchTable()
+	rl.SetAudioStreamBufferSizeDefault(4096)
 	rl.InitAudioDevice() // Initialize audio device
 }
 

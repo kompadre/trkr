@@ -54,6 +54,7 @@ type Track struct {
 type Project struct {
 	CurrentTrack int `json:"-"`
 	Tracks       []Track
+	Filename     string
 }
 
 func (p *Phrase) Current() *Step {
@@ -123,7 +124,8 @@ func LoadProject(path string) error {
 	return nil
 }
 
-func SaveProject(path string) error {
+func SaveProject() error {
+	path := CurrentProject.Filename
 	file, err := os.Create(path)
 	if err != nil {
 		return err

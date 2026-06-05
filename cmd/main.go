@@ -8,16 +8,16 @@ import (
 	ui "trkr/internal/ui"
 
 	"trkr/internal/audio"
-	"trkr/internal/events"
+	ev "trkr/internal/events"
 	"trkr/internal/player"
-	"trkr/internal/views/track"
+	"trkr/internal/ui/view/settings"
+	"trkr/internal/ui/view/track"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"os"
 )
 
 func main() {
-
 	audio.Init()
 	defer audio.CleanUp()
 	rl.SetTargetFPS(30)
@@ -26,7 +26,7 @@ func main() {
 	// Force SDL to negotiate an OpenGL ES 3.0 context instead of Desktop OpenGL
 
 	defer func() {
-		err := SaveProject("autosave.json")
+		err := SaveProject()
 		if err != nil {
 			fmt.Printf("Error autosaving: %v.\n", err)
 		}
@@ -48,11 +48,25 @@ func main() {
 		rl.ToggleFullscreen()
 	}
 
-	track.Show()
+	rootElement := &ui.Element{ID: ui.GetSpareId()}
+
+	track.Create(rootElement)
+	settings.Create(rootElement)
+
+	ev.RegisterCallback(ev.EventKindInput, func(ctx ev.EventContext) bool {
+		return rootElement.HandleInput(ctx.EventPayload.(ev.InputSnapshot))
+	}, rootElement.ID)
+
+	ev.RegisterCallback(ev.EventKindGuiDraw, func(ctx ev.EventContext) bool {
+		return rootElement.Draw(ctx)
+	}, rootElement.ID)
+
 	var tickerPause time.Duration = 16 * time.Millisecond
 	timer := time.NewTimer(tickerPause)
 	defer timer.Stop() // Clean up when the playback loop terminates
 	skipInputTriggers := 0
+	ui.RootElement = rootElement
+	drawPayload := &ui.ElementDrawPayload{}
 	for !rl.WindowShouldClose() {
 		select {
 		case <-timer.C:
@@ -62,20 +76,19 @@ func main() {
 		if skipInputTriggers > 0 {
 			skipInputTriggers--
 		} else {
-			if events.Trigger(events.EventKindInput, events.EventContext{
+			if ev.Trigger(ev.EventKindInput, ev.EventContext{
 				EventData:    nil,
-				EventPayload: events.CalculateInputSnapshot(),
+				EventPayload: ev.CalculateInputSnapshot(),
 			}) {
 				skipInputTriggers = 5
 			}
 		}
-
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.RayWhite)
 		if !player.IsPlaying || runtime.GOARCH != "arm64" {
-			events.Trigger(events.EventKindGuiDraw, events.EventContext{
+			ev.Trigger(ev.EventKindGuiDraw, ev.EventContext{
 				EventData:    nil,
-				EventPayload: nil,
+				EventPayload: drawPayload,
 			})
 		}
 		rl.EndDrawing()
@@ -84,6 +97,7 @@ func main() {
 
 func demoProject() *Project {
 	currentProject := Project{
+		Filename: "autosave.json",
 		Tracks: []Track{
 			{Phrases: []Phrase{{}}},
 			{Phrases: []Phrase{{}}},

@@ -1,0 +1,86 @@
+package input
+
+import (
+	"fmt"
+	rl "github.com/gen2brain/raylib-go/raylib"
+	"strings"
+	ev "trkr/internal/events"
+	"trkr/internal/ui"
+)
+
+type Input struct {
+	Action      ui.Action
+	Label       string
+	Value       [64]rune
+	ValueStr    string
+	FocusedChar uint8
+}
+
+func NewInput(label string, relativeLeft int32, relativeTop int32, width int32, height int32, action ui.Action, parent *ui.Element) *Input {
+	fmt.Printf("Creating input l:%d, t:%d, w:%d, h:%d.\n", relativeLeft, relativeTop, width, height)
+	in := &Input{Label: label, Action: action}
+
+	// func NewElement(left int32, top int32, width int32, height int32, core ElementCore, parent *Element) *Element {
+	el := ui.NewElement(relativeLeft, relativeTop, width, height, in, parent)
+	fmt.Printf("Element is %v\n", el)
+	return in
+}
+
+func (in Input) Show() {}
+
+func (in Input) Hide() {}
+
+func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
+	if input[ev.InputKindDir] {
+		if input[ev.InputKindPressedUp] {
+			in.Value[in.FocusedChar]++
+		} else if input[ev.InputKindPressedDown] {
+			in.Value[in.FocusedChar]--
+		} else if input[ev.InputKindPressedLeft] && in.FocusedChar > 0 {
+			in.FocusedChar--
+		} else if input[ev.InputKindPressedRight] && in.FocusedChar < 7 {
+			if in.Value[in.FocusedChar] == '\x00' {
+				in.Value[in.FocusedChar] = 'A'
+			}
+			in.FocusedChar++
+		}
+		if in.Value[in.FocusedChar] == '\x01' || in.Value[in.FocusedChar] == '\x00' || in.Value[in.FocusedChar] > 'Z' {
+			in.Value[in.FocusedChar] = 'A'
+		} else if in.Value[in.FocusedChar] < 'A' {
+			in.Value[in.FocusedChar] = 'Z'
+		}
+		in.ValueStr = strings.TrimRight(string(in.Value[:]), "\x00")
+		fmt.Printf("ValueStr: %v, FocusedChar: %d.\n", in.ValueStr, in.FocusedChar)
+		return true
+	} else if input[ev.InputKindPressedEnter] {
+		el.Parent.FocusJump(1)
+		return true
+	}
+	return false
+}
+
+func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
+	var left, top, width, height int32
+	p := ctx.EventPayload.(*ui.ElementDrawPayload)
+	if p != nil {
+		left = p.Left + p.Element.Left
+		top = p.Top + p.Element.Top
+		width = p.Element.Width
+		height = p.Element.Height
+	}
+
+	bgcolor := ui.InputBg1
+	fgcolor := ui.WindowFg1
+	preffix := ""
+	if hasFocus {
+		preffix = ">"
+	}
+
+	rl.DrawText(preffix+in.Label, left, top, 20, fgcolor)
+	rl.DrawRectangle(left+80, top, width-80, height, bgcolor)
+	rl.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
+	if hasFocus {
+		rl.DrawText("_", left+85+int32(in.FocusedChar*14), top+6, 20, fgcolor)
+	}
+	return false
+}

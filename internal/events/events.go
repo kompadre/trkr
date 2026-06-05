@@ -1,7 +1,8 @@
 package events
 
 import (
-	"fmt"
+	"slices"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
@@ -23,8 +24,8 @@ type EventCallback func(EventContext) bool
 
 type Event struct {
 	EventKind
-	RegistredCallbacks []EventCallback
-	Descriptions       []string
+	RegistredCallbacks map[uint16]EventCallback
+	CallbackKeys       []uint16
 }
 
 var EventMap = map[EventKind]*Event{}
@@ -67,34 +68,41 @@ func CalculateInputSnapshot() InputSnapshot {
 	return snapshot
 }
 
-func RegisterCallback(eventKind EventKind, callback EventCallback, callbackDescription string) {
-	event, ok := EventMap[eventKind]
+func RegisterCallback(eventKind EventKind, callback EventCallback, ID uint16) {
+	eventQueue, ok := EventMap[eventKind]
 	if !ok {
-		EventMap[eventKind] = &Event{
+		eventQueue := &Event{
 			EventKind:          eventKind,
-			RegistredCallbacks: []EventCallback{callback},
-			Descriptions:       []string{callbackDescription},
+			RegistredCallbacks: make(map[uint16]EventCallback),
 		}
+
+		eventQueue.RegistredCallbacks[ID] = callback
+		eventQueue.CallbackKeys = []uint16{ID}
+		EventMap[eventKind] = eventQueue
+
 	} else {
-		event.RegistredCallbacks = append(event.RegistredCallbacks, callback)
-		event.Descriptions = append(event.Descriptions, callbackDescription)
+		eventQueue.RegistredCallbacks[ID] = callback
+		eventQueue.CallbackKeys = append(eventQueue.CallbackKeys, ID)
+		slices.Sort(eventQueue.CallbackKeys)
 	}
 }
 
 func ClearCallbacks(eventKind EventKind) {
 	_, ok := EventMap[eventKind]
 	if ok {
-		EventMap[eventKind].RegistredCallbacks = []EventCallback{}
+		for id := range EventMap[eventKind].RegistredCallbacks {
+			delete(EventMap[eventKind].RegistredCallbacks, id)
+		}
 	}
 }
 
-func PopCallback(eventKind EventKind) {
-	ev, ok := EventMap[eventKind]
-	if ok && len(ev.RegistredCallbacks) > 0 {
-		ev.RegistredCallbacks[len(ev.RegistredCallbacks)-1] = nil
-		ev.RegistredCallbacks = ev.RegistredCallbacks[:len(ev.RegistredCallbacks)-1]
-		fmt.Printf("Popping %s event.\n", ev.Descriptions[len(ev.Descriptions)-1])
-		ev.Descriptions = ev.Descriptions[:len(ev.Descriptions)-1]
+func RemoveCallback(eventKind EventKind, ID uint16) {
+	_, ok := EventMap[eventKind].RegistredCallbacks[ID]
+	if ok {
+		delete(EventMap[eventKind].RegistredCallbacks, ID)
+		EventMap[eventKind].CallbackKeys = slices.DeleteFunc(EventMap[eventKind].CallbackKeys, func(k uint16) bool {
+			return k == ID
+		})
 	}
 }
 
@@ -104,8 +112,8 @@ func Trigger(kind EventKind, ctx EventContext) bool {
 		return false
 	}
 	result := false
-	for i := len(ev.RegistredCallbacks) - 1; i >= 0; i-- {
-		result = ev.RegistredCallbacks[i](ctx)
+	for _, k := range ev.CallbackKeys {
+		result = ev.RegistredCallbacks[k](ctx)
 		if result {
 			break
 		}

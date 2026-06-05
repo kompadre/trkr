@@ -26,22 +26,23 @@ sudo apt install libasound2-dev libx11-dev libxrandr-dev libxi-dev libxcursor-de
 Clone the repository and build or run the project:
 
 git clone https://github.com/kompadre/trkr.git
-```bash
-make trkr # To get Linux amd64 binary```
-or ...
-```bash
-make trkr-wayland # to get Linux amd64 with wayland binary```
-or ...
-```bash
-make trkr-arm64 # to get Linux arm64 binary that should run on Linux handhelds like ANBERNIC```
-or ...
-```bash
-make trkr-x64.exe # to get a windows executable```
-or ...
-```bash
-make clean # to remove previously built executables```
 
-Note: building other than Linux amd64 target may have more requirements. Building arm64 requires Docker.
+### Available Targets
+
+* `make linux-wayland` (Default)
+  Builds the native AMD64 binary with native Wayland support. Output: `trkr`.
+
+* `make linux-amd64`
+  Builds the AMD64 binary configured for X11 environments. Output: `trkr-x11`.
+
+* `make linux-arm64`
+  Cross-compiles the binary for ARM64 Linux devices (such as handhelds). This automatically builds a dedicated Docker container environment to handle the CGO toolchain and SDL/OpenGL ES2 dependencies without polluting your local system. Output: `trkr-arm64`.
+
+* `make win64`
+  Cross-compiles a 64-bit Windows executable. This requires the `x86_64-w64-mingw32-gcc` toolchain to be present on your host machine for CGO compilation. Output: `trkr.exe`.
+
+* `make clean`
+  Removes all compiled binaries and temporary build-tracking files.
 
 ---
 

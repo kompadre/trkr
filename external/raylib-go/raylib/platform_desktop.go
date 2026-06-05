@@ -1,5 +1,5 @@
-//go:build !android && !drm
-// +build !android,!drm
+//go:build !android && !drm && !windows
+// +build !android,!drm,!windows
 
 package rl
 
