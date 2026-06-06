@@ -11,7 +11,8 @@ type EventKind int
 const (
 	EventKindTick EventKind = iota
 	EventKindInput
-	EventKindGuiDraw
+	EventKindUpdate
+	EventKindPostUpdate
 	EventKindShutdown
 )
 
@@ -114,6 +115,9 @@ func Trigger(kind EventKind, ctx EventContext) bool {
 	result := false
 	for _, k := range ev.CallbackKeys {
 		result = ev.RegistredCallbacks[k](ctx)
+		if result && kind == EventKindPostUpdate {
+			RemoveCallback(kind, k)
+		}
 		if result {
 			break
 		}

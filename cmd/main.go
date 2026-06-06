@@ -48,26 +48,26 @@ func main() {
 		rl.ToggleFullscreen()
 	}
 
-	rootElement := &ui.Element{ID: ui.GetSpareId()}
+	ui.RootElement = &ui.Element{ID: ui.GetSpareId()}
 
-	track.Create(rootElement)
-	settings.Create(rootElement)
+	track.Create(ui.RootElement)
+	settings.Create(ui.RootElement)
 
 	ev.RegisterCallback(ev.EventKindInput, func(ctx ev.EventContext) bool {
-		return rootElement.HandleInput(ctx.EventPayload.(ev.InputSnapshot))
-	}, rootElement.ID)
+		return ui.RootElement.HandleInput(ctx.EventPayload.(ev.InputSnapshot))
+	}, ui.RootElement.ID)
 
-	ev.RegisterCallback(ev.EventKindGuiDraw, func(ctx ev.EventContext) bool {
-		return rootElement.Draw(ctx)
-	}, rootElement.ID)
+	ev.RegisterCallback(ev.EventKindUpdate, func(ctx ev.EventContext) bool {
+		return ui.RootElement.Draw(ctx)
+	}, ui.RootElement.ID)
 
 	var tickerPause time.Duration = 16 * time.Millisecond
 	timer := time.NewTimer(tickerPause)
 	defer timer.Stop() // Clean up when the playback loop terminates
 	skipInputTriggers := 0
-	ui.RootElement = rootElement
 	ui.Font = rl.LoadFont("./assets/fonts/Montserrat-Bold.ttf")
 	drawPayload := &ui.ElementDrawPayload{}
+	redrawFrames := 5
 	for !rl.WindowShouldClose() {
 		select {
 		case <-timer.C:
@@ -81,18 +81,25 @@ func main() {
 				EventData:    nil,
 				EventPayload: ev.CalculateInputSnapshot(),
 			}) {
+				redrawFrames = 3
 				skipInputTriggers = 5
 			}
 		}
+
 		rl.BeginDrawing()
-		rl.ClearBackground(rl.RayWhite)
-		if !player.IsPlaying || runtime.GOARCH != "arm64" {
-			ev.Trigger(ev.EventKindGuiDraw, ev.EventContext{
-				EventData:    nil,
-				EventPayload: drawPayload,
-			})
+		if redrawFrames > 0 || player.IsPlaying {
+			rl.ClearBackground(rl.RayWhite)
+			if !player.IsPlaying || runtime.GOARCH != "arm64" {
+				ev.Trigger(ev.EventKindUpdate, ev.EventContext{
+					EventData:    nil,
+					EventPayload: drawPayload,
+				})
+			}
+			redrawFrames--
 		}
 		rl.EndDrawing()
+		ev.Trigger(ev.EventKindPostUpdate, ev.EventContext{})
+		ui.CurrentFrame++
 	}
 }
 

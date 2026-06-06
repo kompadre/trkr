@@ -4,6 +4,8 @@ import rl "github.com/gen2brain/raylib-go/raylib"
 import c "image/color"
 import ev "trkr/internal/events"
 import "fmt"
+import "sync"
+import "slices"
 
 type Options struct {
 	ColorHighlight  rl.Color
@@ -12,6 +14,10 @@ type Options struct {
 	ScreenWidth     int
 	ScreenHeight    int
 }
+
+var ElementTreeMutex sync.Mutex
+
+var CurrentFrame uint32
 
 type ElementCore interface {
 	Show()
@@ -76,6 +82,7 @@ type Element struct {
 	Children     []*Element
 	FocusedChild *Element
 	Visible      bool
+	Removed      bool
 }
 
 var RootElement *Element
@@ -147,6 +154,11 @@ func (e *Element) Draw(ctx ev.EventContext) bool {
 		ctx.EventPayload.(*ElementDrawPayload).Element = e
 		ctx.EventPayload.(*ElementDrawPayload).Top += e.Top
 		ctx.EventPayload.(*ElementDrawPayload).Left += e.Left
+		defer (func() {
+			ctx.EventPayload.(*ElementDrawPayload).Left = oldPayload.Left
+			ctx.EventPayload.(*ElementDrawPayload).Top = oldPayload.Top
+			ctx.EventPayload.(*ElementDrawPayload).Element = oldPayload.Element
+		})()
 	}
 	if e.Core != nil && e.Core.Draw(ctx, e.HasFocus()) {
 		return true
@@ -155,6 +167,7 @@ func (e *Element) Draw(ctx ev.EventContext) bool {
 		ctx.EventPayload.(*ElementDrawPayload).Top += e.TopPadding
 		ctx.EventPayload.(*ElementDrawPayload).Left += e.LeftPadding
 	}
+
 	for i := range e.Children {
 		if e.Children[i].Visible {
 			ctx.EventPayload.(*ElementDrawPayload).Element = e.Children[i]
@@ -163,9 +176,6 @@ func (e *Element) Draw(ctx ev.EventContext) bool {
 			}
 		}
 	}
-	ctx.EventPayload.(*ElementDrawPayload).Left = oldPayload.Left
-	ctx.EventPayload.(*ElementDrawPayload).Top = oldPayload.Top
-	ctx.EventPayload.(*ElementDrawPayload).Element = oldPayload.Element
 
 	return false
 }
@@ -176,6 +186,26 @@ func (e *Element) Add(c *Element, SetFocus bool) {
 	if SetFocus {
 		e.FocusedChild = c
 	}
+}
+
+func (e *Element) Remove() {
+	ev.RegisterCallback(ev.EventKindPostUpdate, func(ctx ev.EventContext) bool {
+		if e.Removed {
+			return true
+		}
+
+		for _, c := range e.Children {
+			c.Remove()
+		}
+		if e.HasFocus() {
+			e.Parent.FocusedChild = nil
+		}
+		e.Parent.Children = slices.DeleteFunc(e.Parent.Children, func(c *Element) bool {
+			return c == e
+		})
+		e.Removed = true
+		return true
+	}, e.ID)
 }
 
 type Action func(any) bool

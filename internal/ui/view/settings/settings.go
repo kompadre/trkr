@@ -2,9 +2,11 @@ package settings
 
 import (
 	"fmt"
+	"time"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
 	"trkr/internal/ui/widget/button"
+	"trkr/internal/ui/widget/dialog"
 	"trkr/internal/ui/widget/input"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -27,7 +29,17 @@ func Create(parent *ui.Element) {
 	uiElem.Visible = false
 	fmt.Printf("Settings ID is %v.\n", uiElem.ID)
 	_ = input.NewInput("Name: ", 0, 0, 200, 26, nil, uiElem)
-	_ = button.NewButton("SONG", 0, 20, 80, 30, (func(any) bool {
+	_ = button.NewButton("SONG", 0, 20, 80, 30, (func(payload any) bool {
+		bel := payload.(*ui.Element)
+		d := dialog.NewDialog("Title", "Some text here won't harm right?", 50, 20, 150, 50, nil, parent)
+		d.Visible = true
+		oldRoot := ui.RootElement
+		ui.RootElement = d
+		time.AfterFunc(5*time.Second, func() {
+			bel.Parent.FocusedChild = nil
+			ui.RootElement = oldRoot
+			d.Remove()
+		})
 		return true
 	}), uiElem)
 	_ = button.NewButton("TRAK", 45, 20, 80, 30, nil, uiElem)
