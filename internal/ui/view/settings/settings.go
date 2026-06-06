@@ -36,6 +36,7 @@ func Create(parent *ui.Element) {
 		oldRoot := ui.RootElement
 		ui.RootElement = d
 		time.AfterFunc(5*time.Second, func() {
+			fmt.Printf("Removing dialog...\n")
 			bel.Parent.FocusedChild = nil
 			ui.RootElement = oldRoot
 			d.Remove()

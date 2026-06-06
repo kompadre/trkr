@@ -226,6 +226,7 @@ var (
 	WindowBg2 = c.RGBA{30, 190, 90, 255}
 	WindowBg3 = c.RGBA{90, 190, 30, 255}
 	WindowBg4 = c.RGBA{250, 250, 250, 255}
+	WindowBg5 = c.RGBA{30, 30, 30, 255}
 
 	InputBg1 = c.RGBA{255, 255, 255, 255}
 

@@ -82,13 +82,13 @@ func main() {
 				EventPayload: ev.CalculateInputSnapshot(),
 			}) {
 				redrawFrames = 3
-				skipInputTriggers = 5
+				skipInputTriggers = 10
 			}
 		}
 
 		rl.BeginDrawing()
 		if redrawFrames > 0 || player.IsPlaying {
-			rl.ClearBackground(rl.RayWhite)
+			rl.ClearBackground(ui.WindowBg5)
 			if !player.IsPlaying || runtime.GOARCH != "arm64" {
 				ev.Trigger(ev.EventKindUpdate, ev.EventContext{
 					EventData:    nil,
@@ -98,7 +98,9 @@ func main() {
 			redrawFrames--
 		}
 		rl.EndDrawing()
-		ev.Trigger(ev.EventKindPostUpdate, ev.EventContext{})
+		if ev.Trigger(ev.EventKindPostUpdate, ev.EventContext{}) {
+			redrawFrames = 3
+		}
 		ui.CurrentFrame++
 	}
 }

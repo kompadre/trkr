@@ -79,9 +79,9 @@ func Draw(ctx events.EventContext, hasFocus bool) bool {
 
 		verticalAnchor := i - firstVerticalItem
 		if i%4 == 0 {
-			rl.DrawText(fmt.Sprintf("%02d", int(i)), int32(columnStarts[0]), int32(10+verticalAnchor*20), 20, rl.Red)
+			ui.DrawText(fmt.Sprintf("%02d", int(i)), int32(columnStarts[0]), int32(10+verticalAnchor*20), 20, rl.Red)
 		} else {
-			rl.DrawText(fmt.Sprintf("%02d", int(i)), int32(columnStarts[0]), int32(10+verticalAnchor*20), 20, rl.Lime)
+			ui.DrawText(fmt.Sprintf("%02d", int(i)), int32(columnStarts[0]), int32(10+verticalAnchor*20), 20, rl.Lime)
 		}
 
 		for j := 0; j < len(step.Notes)-1; j++ {
