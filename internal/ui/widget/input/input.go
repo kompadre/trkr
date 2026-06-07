@@ -11,14 +11,14 @@ import (
 type Input struct {
 	Action      ui.Action
 	Label       string
-	Value       [64]rune
+	Value       [8]rune
 	ValueStr    string
 	FocusedChar uint8
 }
 
 func NewInput(label string, relativeLeft int32, relativeTop int32, width int32, height int32, action ui.Action, parent *ui.Element) *Input {
 	fmt.Printf("Creating input l:%d, t:%d, w:%d, h:%d.\n", relativeLeft, relativeTop, width, height)
-	in := &Input{Label: label, Action: action}
+	in := &Input{Label: label, Action: action, ValueStr: " ", Value: [8]rune{' '}}
 
 	// func NewElement(left int32, top int32, width int32, height int32, core ElementCore, parent *Element) *Element {
 	el := ui.NewElement(relativeLeft, relativeTop, width, height, in, parent)
@@ -40,13 +40,15 @@ func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
 			in.FocusedChar--
 		} else if input[ev.InputKindPressedRight] && in.FocusedChar < 7 {
 			if in.Value[in.FocusedChar] == '\x00' {
-				in.Value[in.FocusedChar] = 'A'
+				in.Value[in.FocusedChar] = ' '
 			}
 			in.FocusedChar++
 		}
 		if in.Value[in.FocusedChar] == '\x01' || in.Value[in.FocusedChar] == '\x00' || in.Value[in.FocusedChar] > 'Z' {
+			in.Value[in.FocusedChar] = ' '
+		} else if in.Value[in.FocusedChar] == (1 + ' ') {
 			in.Value[in.FocusedChar] = 'A'
-		} else if in.Value[in.FocusedChar] < 'A' {
+		} else if in.Value[in.FocusedChar] == (-1 + ' ') {
 			in.Value[in.FocusedChar] = 'Z'
 		}
 		in.ValueStr = strings.TrimRight(string(in.Value[:]), "\x00")
@@ -77,8 +79,8 @@ func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
 	}
 
 	ui.DrawText(preffix+in.Label, left, top+2, 20, fgcolor)
-	rl.DrawRectangle(left+80, top, width-80, height, bgcolor)
-	var extraLeft int32 = 85
+	rl.DrawRectangle(left+60, top, width-60, height, bgcolor)
+	var extraLeft int32 = 65
 	var underLeft int32
 	for i := range 8 {
 		if in.Value[i] == 'I' {
@@ -89,11 +91,7 @@ func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
 			underLeft = extraLeft
 		}
 
-		if in.Value[i] == 'I' {
-			extraLeft += 8
-		} else {
-			extraLeft += 14
-		}
+		extraLeft += 10
 
 		if in.Value[i] == 0 {
 			break

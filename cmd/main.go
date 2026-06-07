@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
-	"time"
+	//"time"
 	. "trkr"
 	ui "trkr/internal/ui"
 
@@ -38,6 +38,7 @@ func main() {
 		project := Project{}
 		CurrentProject = &project
 		LoadProject("autosave.json")
+		project.Filename = "autosave.json"
 	}
 
 	if runtime.GOARCH == "arm64" {
@@ -61,19 +62,11 @@ func main() {
 		return ui.RootElement.Draw(ctx)
 	}, ui.RootElement.ID)
 
-	var tickerPause time.Duration = 16 * time.Millisecond
-	timer := time.NewTimer(tickerPause)
-	defer timer.Stop() // Clean up when the playback loop terminates
 	skipInputTriggers := 0
-	ui.Font = rl.LoadFont("./assets/fonts/Montserrat-Bold.ttf")
+	ui.Font = rl.LoadFont("./assets/fonts/JetBrainsMono-SemiBold.ttf")
 	drawPayload := &ui.ElementDrawPayload{}
 	redrawFrames := 5
 	for !rl.WindowShouldClose() {
-		select {
-		case <-timer.C:
-			timer.Reset(tickerPause)
-		}
-
 		if skipInputTriggers > 0 {
 			skipInputTriggers--
 		} else {
@@ -82,7 +75,7 @@ func main() {
 				EventPayload: ev.CalculateInputSnapshot(),
 			}) {
 				redrawFrames = 3
-				skipInputTriggers = 10
+				skipInputTriggers = 3
 			}
 		}
 

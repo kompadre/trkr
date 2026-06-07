@@ -1,6 +1,7 @@
 package dialog
 
 import (
+	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
@@ -24,13 +25,20 @@ func NewDialog(label string, text string, relativeLeft int32, relativeTop int32,
 func (d Dialog) Show() {}
 func (d Dialog) Hide() {}
 
-func (d *Dialog) HandleInput(input ev.InputSnapshot, el *ui.Element) bool { return false }
+func (d *Dialog) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
+	fmt.Printf("Receiving input from Dialog.\n")
+	if input[ev.InputKindPressedEnter] {
+		el.Remove()
+		return true
+	}
+	return false
+}
 
 func (d *Dialog) Draw(ctx ev.EventContext, hasFocus bool) bool {
-	bgcolor := ui.WindowBg2
-
-	rl.DrawRectangle(0, 0, int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), bgcolor)
-	ui.DrawText(d.Label, 4, 0, 16, ui.WindowFg1)
-	ui.DrawText(d.Text, 4, 20, 20, ui.WindowFg2)
+	ww, wh := int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight)
+	rl.DrawRectangle(0, 0, ww, 20, ui.WindowBg4)
+	rl.DrawRectangle(0, 20, ww, wh-20, ui.WindowBg5)
+	ui.DrawText(d.Label, 20, 0, 20, ui.WindowFg1)
+	ui.DrawText(d.Text, 20, 30, 16, ui.WindowFg2)
 	return true
 }

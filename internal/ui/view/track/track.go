@@ -209,7 +209,12 @@ func handleInput(input ev.InputSnapshot, el *ui.Element) bool {
 		}
 		result = true
 	} else if input[ev.InputKindPressedEnter] {
-		settings.Show()
+		if !ui.SettingsDialog.Visible {
+			settings.Show()
+			result = true
+		}
+	} else if player.IsPlaying && (input[ev.InputKindPressedA] || input[ev.InputKindPressedB]) {
+		player.Stop()
 		result = true
 	}
 	return result

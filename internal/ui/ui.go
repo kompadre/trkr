@@ -86,6 +86,9 @@ type Element struct {
 }
 
 var RootElement *Element
+var TrackDialog *Element
+var SongDialog *Element
+var SettingsDialog *Element
 
 func NewElement(left int32, top int32, width int32, height int32, core ElementCore, parent *Element) *Element {
 	elem := &Element{ID: nextUniqueId(), Left: left, Top: top, Width: width, Height: height, Visible: true}
@@ -114,28 +117,46 @@ func (e *Element) HandleInput(input ev.InputSnapshot) bool {
 func (e *Element) FocusJump(offset int) {
 	numChildren := len(e.Children)
 	if numChildren == 0 {
-		return // Nothing to focus
-	}
-
-	currentIndex := -1
-	for i, child := range e.Children {
-		if child == e.FocusedChild {
-			currentIndex = i
-			break
-		}
-	}
-	if currentIndex == -1 {
-		e.FocusedChild = e.Children[0]
+		e.FocusedChild = nil
 		return
 	}
 
-	// Adding numChildren before modulo handles negative offsets safely
+	currentIndex := -1
+	hasVisibleChildren := false
+
+	for i, child := range e.Children {
+		if child == e.FocusedChild {
+			currentIndex = i
+		}
+		if child.Visible {
+			hasVisibleChildren = true
+		}
+		if hasVisibleChildren && currentIndex > -1 {
+			break
+		}
+	}
+
+	// If all children are invisible, clear focus immediately and bail
+	if !hasVisibleChildren {
+		fmt.Println("Container has no visible children. Clearing focus.")
+		e.FocusedChild = nil
+		return
+	}
+
+	if currentIndex == -1 {
+		currentIndex = 0
+	}
+
 	newIndex := (currentIndex + offset) % numChildren
 	if newIndex < 0 {
 		newIndex += numChildren
 	}
 
-	// 3. Apply the focus change safely
+	for !e.Children[newIndex].Visible {
+		newIndex = (newIndex + 1) % numChildren
+	}
+
+	fmt.Printf("Focusing on child %d (ID:%d).\n", newIndex, e.Children[newIndex].ID)
 	e.FocusedChild = e.Children[newIndex]
 }
 
