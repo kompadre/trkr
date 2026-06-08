@@ -1,4 +1,4 @@
-package input
+package widget
 
 import (
 	"fmt"
@@ -50,6 +50,8 @@ func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
 			in.Value[in.FocusedChar] = 'A'
 		} else if in.Value[in.FocusedChar] == (-1 + ' ') {
 			in.Value[in.FocusedChar] = 'Z'
+		} else if in.Value[in.FocusedChar] < '0' {
+			in.Value[in.FocusedChar] = 'A'
 		}
 		in.ValueStr = strings.TrimRight(string(in.Value[:]), "\x00")
 		fmt.Printf("ValueStr: %v, FocusedChar: %d.\n", in.ValueStr, in.FocusedChar)

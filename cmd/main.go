@@ -20,11 +20,9 @@ import (
 func main() {
 	audio.Init()
 	defer audio.CleanUp()
-	rl.SetTargetFPS(30)
+	rl.SetConfigFlags(rl.FlagVsyncHint)
 	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "trkr v.0.0.1")
 	defer rl.CloseWindow()
-	// Force SDL to negotiate an OpenGL ES 3.0 context instead of Desktop OpenGL
-
 	defer func() {
 		err := SaveProject()
 		if err != nil {
@@ -62,11 +60,16 @@ func main() {
 		return ui.RootElement.Draw(ctx)
 	}, ui.RootElement.ID)
 
+	image := rl.LoadImage("./assets/images/bg.png")
+	bg := rl.LoadTextureFromImage(image)
+	rl.UnloadImage(image)
+
 	skipInputTriggers := 0
 	ui.Font = rl.LoadFont("./assets/fonts/JetBrainsMono-SemiBold.ttf")
 	drawPayload := &ui.ElementDrawPayload{}
 	redrawFrames := 5
 	for !rl.WindowShouldClose() {
+		currentFPS := rl.GetFPS()
 		if skipInputTriggers > 0 {
 			skipInputTriggers--
 		} else {
@@ -75,13 +78,18 @@ func main() {
 				EventPayload: ev.CalculateInputSnapshot(),
 			}) {
 				redrawFrames = 3
-				skipInputTriggers = 3
+				if currentFPS > 0 {
+					skipInputTriggers = int(0.1 * float32(currentFPS))
+				} else {
+					skipInputTriggers = 6
+				}
 			}
 		}
 
 		rl.BeginDrawing()
 		if redrawFrames > 0 || player.IsPlaying {
 			rl.ClearBackground(ui.WindowBg5)
+			rl.DrawTexture(bg, 0, 0, rl.White)
 			if !player.IsPlaying || runtime.GOARCH != "arm64" {
 				ev.Trigger(ev.EventKindUpdate, ev.EventContext{
 					EventData:    nil,

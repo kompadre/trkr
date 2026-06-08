@@ -16,6 +16,8 @@ const (
 	EventKindShutdown
 )
 
+const EventGamepadDeadZone = 0.1
+
 type EventContext struct {
 	EventData    []byte
 	EventPayload interface{}
@@ -47,6 +49,7 @@ const (
 	InputKindPressedPageDown InputKind = rl.KeyPageDown
 	InputKindPressedPageUp   InputKind = rl.KeyPageUp
 	InputKindPressedEnter    InputKind = rl.KeyEnter
+	InputKindGamepadLeft     InputKind = 998
 	InputKindDir             InputKind = 999
 )
 
@@ -58,10 +61,28 @@ type InputSnapshot map[InputKind]bool
 
 func CalculateInputSnapshot() InputSnapshot {
 	snapshot := InputSnapshot{}
+	gamepadAxisLeftX := rl.GetGamepadAxisMovement(0, rl.GamepadAxisLeftX)
+	gamepadAxisLeftY := rl.GetGamepadAxisMovement(0, rl.GamepadAxisLeftY)
+
+	if gamepadAxisLeftX < EventGamepadDeadZone*-1 || gamepadAxisLeftX > EventGamepadDeadZone ||
+		gamepadAxisLeftY < EventGamepadDeadZone*-1 || gamepadAxisLeftY > EventGamepadDeadZone {
+		if gamepadAxisLeftX < EventGamepadDeadZone*-1 {
+			snapshot[InputKindPressedLeft] = true
+		} else if gamepadAxisLeftX > EventGamepadDeadZone {
+			snapshot[InputKindPressedRight] = true
+		} else if gamepadAxisLeftY < EventGamepadDeadZone*-1 {
+			snapshot[InputKindPressedUp] = true
+		} else if gamepadAxisLeftY > EventGamepadDeadZone*1 {
+			snapshot[InputKindPressedDown] = true
+		}
+		snapshot[InputKindDir] = true
+	}
+
 	for _, key := range InputInputs {
 		if rl.IsKeyDown(int32(key)) {
 			snapshot[key] = true
-			if key == InputKindPressedLeft || key == InputKindPressedUp || key == InputKindPressedRight || key == InputKindPressedDown || key == InputKindPressedPageDown || key == InputKindPressedPageUp {
+			if key == InputKindPressedLeft || key == InputKindPressedUp || key == InputKindPressedRight ||
+				key == InputKindPressedDown || key == InputKindPressedPageDown || key == InputKindPressedPageUp {
 				snapshot[InputKindDir] = true
 			}
 		}

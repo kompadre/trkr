@@ -211,6 +211,7 @@ func (e *Element) Add(c *Element, SetFocus bool) {
 
 func (e *Element) Remove() {
 	ev.RegisterCallback(ev.EventKindPostUpdate, func(ctx ev.EventContext) bool {
+		fmt.Printf("Trying to remove %v.\n", e)
 		if e.Removed {
 			return true
 		}
@@ -218,12 +219,21 @@ func (e *Element) Remove() {
 		for _, c := range e.Children {
 			c.Remove()
 		}
+
 		if e.HasFocus() {
+			fmt.Printf("Child had focus.")
 			e.Parent.FocusedChild = nil
 		}
+
 		e.Parent.Children = slices.DeleteFunc(e.Parent.Children, func(c *Element) bool {
+			if c == e {
+				fmt.Printf("Removing that child.\n")
+			} else {
+				fmt.Printf("Not removing that child.\n")
+			}
 			return c == e
 		})
+
 		e.Removed = true
 		return true
 	}, e.ID)

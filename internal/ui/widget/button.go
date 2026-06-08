@@ -1,4 +1,4 @@
-package button
+package widget
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"

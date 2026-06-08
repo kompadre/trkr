@@ -12,8 +12,8 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-var columnStarts = []int{10, 40, 80, 120, 160, 200, 240, 280, 320}
-var columnWidths = []int{30, 40, 40, 40, 40, 30}
+var columnStarts = []int{40, 80, 120, 160, 200, 240, 280, 320}
+var columnWidths = []int{40, 40, 40, 40, 40, 40, 40, 40}
 var currentCol int
 var currentRow int
 var UiTrackId int
@@ -79,16 +79,19 @@ func Draw(ctx events.EventContext, hasFocus bool) bool {
 
 		verticalAnchor := i - firstVerticalItem
 		if i%4 == 0 {
-			ui.DrawText(fmt.Sprintf("%02d", int(i)), int32(columnStarts[0]), int32(10+verticalAnchor*20), 20, rl.Red)
+			ui.DrawText(fmt.Sprintf("%02d", int(i)), 10, int32(10+verticalAnchor*20), 20, rl.Red)
 		} else {
-			ui.DrawText(fmt.Sprintf("%02d", int(i)), int32(columnStarts[0]), int32(10+verticalAnchor*20), 20, rl.Lime)
+			ui.DrawText(fmt.Sprintf("%02d", int(i)), 10, int32(10+verticalAnchor*20), 20, rl.Lime)
 		}
 
-		for j := 0; j < len(step.Notes)-1; j++ {
+		for j := 0; j < len(step.Notes); j++ {
+			if j >= len(columnStarts) {
+				break
+			}
 			if step.Notes[j] > 0 {
-				rl.DrawText(fmt.Sprintf("%s%d", Notation[(step.Notes[j]-1)%SemitonesInOctave], (step.Notes[j]-1)/12), int32(columnStarts[j+1]), int32(10+verticalAnchor*20), 20, rl.Lime)
+				rl.DrawText(fmt.Sprintf("%s%d", Notation[(step.Notes[j]-1)%SemitonesInOctave], (step.Notes[j]-1)/12), int32(columnStarts[j]), int32(10+verticalAnchor*20), 20, rl.Lime)
 			} else {
-				rl.DrawText("--", int32(columnStarts[j+1]), int32(10+verticalAnchor*20), 20, rl.Maroon)
+				rl.DrawText("--", int32(columnStarts[j])+10, int32(10+verticalAnchor*20), 20, rl.Maroon)
 			}
 		}
 		// rl.DrawText(fmt.Sprintf("%d", int(ui.GetOptions().ScreenWidth)), 100.0, int32(10+i*20), 20, rl.Lime)
@@ -153,22 +156,44 @@ func handleInput(input ev.InputSnapshot, el *ui.Element) bool {
 			result = true
 		}
 	} else if input[ev.InputKindPressedR] && input[ev.InputKindDir] {
+		tv := rl.NewVector2(0, 0)
+		oldTrackId, oldPhraseId := UiTrackId, UiPhraseId
 		if input[ev.InputKindPressedLeft] {
-			UiTrackId = Clamp(UiTrackId-1, 0, len(CurrentProject.Tracks)-1)
-			UiPhraseId = 0
+			newTrackId := Clamp(UiTrackId-1, 0, len(CurrentProject.Tracks)-1)
+			if newTrackId != oldTrackId {
+				tv.X = 20
+				_ = ui.NewTransition(el, tv)
+				UiTrackId = Clamp(UiTrackId-1, 0, len(CurrentProject.Tracks)-1)
+				UiPhraseId = 0
+			}
 		} else if input[ev.InputKindPressedRight] {
-			UiTrackId = Clamp(UiTrackId+1, 0, len(CurrentProject.Tracks)-1)
-			UiPhraseId = 0
+			newTrackId := Clamp(UiTrackId+1, 0, len(CurrentProject.Tracks)-1)
+			if newTrackId != oldTrackId {
+				tv.X = -20
+				_ = ui.NewTransition(el, tv)
+				UiTrackId = Clamp(UiTrackId+1, 0, len(CurrentProject.Tracks)-1)
+				UiPhraseId = 0
+			}
 		} else if input[ev.InputKindPressedUp] {
-			UiPhraseId = Clamp(UiPhraseId-1, 0, len(CurrentProject.Tracks[UiTrackId].Phrases)-1)
+			newPhraseId := Clamp(UiPhraseId-1, 0, len(CurrentProject.Tracks[UiTrackId].Phrases)-1)
+			if newPhraseId != oldPhraseId {
+				tv.Y = 20
+				_ = ui.NewTransition(el, tv)
+				UiPhraseId = newPhraseId
+			}
 		} else if input[ev.InputKindPressedDown] {
-			UiPhraseId = Clamp(UiPhraseId+1, 0, len(CurrentProject.Tracks[UiTrackId].Phrases)-1)
+			newPhraseId := Clamp(UiPhraseId+1, 0, len(CurrentProject.Tracks[UiTrackId].Phrases)-1)
+			if newPhraseId != oldPhraseId {
+				tv.Y = -20
+				_ = ui.NewTransition(el, tv)
+				UiPhraseId = newPhraseId
+			}
 		}
 		currentRow = 0
 		currentCol = 0
 		result = true
 	} else if input[ev.InputKindPressedA] && input[ev.InputKindDir] {
-		noteSlot := &currentTrack.Phrases[UiPhraseId].Steps[Clamp(currentRow, 0, 31)].Notes[Clamp(currentCol-1, 0, 4)]
+		noteSlot := &currentTrack.Phrases[UiPhraseId].Steps[Clamp(currentRow, 0, 31)].Notes[Clamp(currentCol, 0, 4)]
 		if *noteSlot == 0 {
 			*noteSlot = LastNote
 		} else if input[ev.InputKindPressedRight] {
@@ -184,6 +209,12 @@ func handleInput(input ev.InputSnapshot, el *ui.Element) bool {
 			LastNote = *noteSlot
 		}
 		result = true
+	} else if input[ev.InputKindPressedB] && input[ev.InputKindDir] {
+		if input[ev.InputKindPressedUp] {
+			_ = ui.NewTransition(el, rl.NewVector2(1, 1))
+		} else if input[ev.InputKindPressedDown] {
+			_ = ui.NewTransition(el, rl.NewVector2(0, 0))
+		}
 	} else if input[ev.InputKindDir] {
 		if input[ev.InputKindPressedDown] {
 			currentRow = Clamp(currentRow+MovementMultiplier, 0, MaxStepsInPhrase-1)
@@ -216,6 +247,14 @@ func handleInput(input ev.InputSnapshot, el *ui.Element) bool {
 	} else if player.IsPlaying && (input[ev.InputKindPressedA] || input[ev.InputKindPressedB]) {
 		player.Stop()
 		result = true
+	} else if input[ev.InputKindPressedB] {
+		noteSlot := &currentTrack.Phrases[UiPhraseId].Steps[Clamp(currentRow, 0, 31)].Notes[Clamp(currentCol, 0, 4)]
+		if *noteSlot != 0 {
+			LastNote = *noteSlot
+		}
+		*noteSlot = 0
+		result = true
 	}
+
 	return result
 }

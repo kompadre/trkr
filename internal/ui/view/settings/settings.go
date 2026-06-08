@@ -2,14 +2,10 @@ package settings
 
 import (
 	"fmt"
-	"time"
+	rl "github.com/gen2brain/raylib-go/raylib"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
-	"trkr/internal/ui/widget/button"
-	"trkr/internal/ui/widget/dialog"
-	"trkr/internal/ui/widget/input"
-
-	rl "github.com/gen2brain/raylib-go/raylib"
+	"trkr/internal/ui/widget"
 )
 
 var Showing bool
@@ -26,25 +22,15 @@ func Create(parent *ui.Element) {
 	uiElem.LeftPadding = 10
 	uiElem.Visible = false
 	fmt.Printf("Settings ID is %v.\n", uiElem.ID)
-	_ = input.NewInput("Name: ", 0, 0, 150, 26, nil, uiElem)
-	_ = button.NewButton("SONG", 0, 20, 80, 30, (func(payload any) bool {
-		bel := payload.(*ui.Element)
-		d := dialog.NewDialog("Title", "Some text here won't harm right?", 50, 20, 150, 50, nil, parent)
-		d.Visible = true
-		oldRoot := ui.RootElement
-		ui.RootElement = d
-		time.AfterFunc(5*time.Second, func() {
-			fmt.Printf("Removing dialog...\n")
-			bel.Parent.FocusedChild = nil
-			ui.RootElement = oldRoot
-			d.Remove()
-		})
+	_ = widget.NewInput("Name: ", 0, 0, 150, 26, nil, uiElem)
+	_ = widget.NewButton("PROJ", 0, 20, 80, 30, (func(payload any) bool {
+
 		return true
 	}), uiElem)
-	_ = button.NewButton("TRAK", 45, 20, 80, 30, nil, uiElem)
-	_ = button.NewButton("SAVE", 90, 20, 80, 30, nil, uiElem)
-	_ = button.NewButton("PHRA", 135, 20, 80, 30, nil, uiElem)
-	_ = button.NewButton("[x]", 180, 20, 50, 30, nil, uiElem)
+	_ = widget.NewButton("TRAK", 45, 20, 80, 30, nil, uiElem)
+	_ = widget.NewButton("SAVE", 90, 20, 80, 30, nil, uiElem)
+	_ = widget.NewButton("PHRA", 135, 20, 80, 30, nil, uiElem)
+	_ = widget.NewButton("[x]", 180, 20, 50, 30, nil, uiElem)
 
 	ui.SettingsDialog = uiElem
 
@@ -68,9 +54,9 @@ func Show() {
 func DrawSettings(ctx ev.EventContext, hasFocus bool) bool {
 	p := ctx.EventPayload.(*ui.ElementDrawPayload)
 	rl.DrawRectangle(p.Left, p.Top, p.Element.Width, p.Element.Height, ui.WindowBg1)
-	ui.DrawText("Settings", p.Left+10, p.Top, 20, ui.WindowFg1)
+	ui.DrawText("Project", p.Left+10, p.Top, 20, ui.WindowFg1)
 	//	DrawTextureRec(Texture2D texture, Rectangle source, Vector2 position, Color tint)
-	rl.DrawTextureRec(Logo, rl.Rectangle{0, 0, 160, 72}, rl.Vector2{float32(ui.GetOptions().ScreenWidth - 160), 0}, rl.White)
+	rl.DrawTextureRec(Logo, rl.Rectangle{0, 0, 159, 69}, rl.Vector2{float32(ui.GetOptions().ScreenWidth - 159), 0}, rl.White)
 	return false
 }
 
