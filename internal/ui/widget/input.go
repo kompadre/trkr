@@ -28,17 +28,18 @@ func NewInput(label string, relativeLeft int32, relativeTop int32, width int32, 
 
 func (in Input) Show() {}
 
-func (in Input) Hide() {}
+func (in Input) Hide()    {}
+func (in Input) Cleanup() {}
 
 func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
-	if input[ev.InputKindDir] {
-		if input[ev.InputKindPressedUp] {
+	if input.Down(ev.InputKindDir) {
+		if input.Down(ev.InputKindUp) {
 			in.Value[in.FocusedChar]++
-		} else if input[ev.InputKindPressedDown] {
+		} else if input.Down(ev.InputKindDown) {
 			in.Value[in.FocusedChar]--
-		} else if input[ev.InputKindPressedLeft] && in.FocusedChar > 0 {
+		} else if input.Down(ev.InputKindLeft) && in.FocusedChar > 0 {
 			in.FocusedChar--
-		} else if input[ev.InputKindPressedRight] && in.FocusedChar < 7 {
+		} else if input.Down(ev.InputKindRight) && in.FocusedChar < 7 {
 			if in.Value[in.FocusedChar] == '\x00' {
 				in.Value[in.FocusedChar] = ' '
 			}
@@ -56,7 +57,7 @@ func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
 		in.ValueStr = strings.TrimRight(string(in.Value[:]), "\x00")
 		fmt.Printf("ValueStr: %v, FocusedChar: %d.\n", in.ValueStr, in.FocusedChar)
 		return true
-	} else if input[ev.InputKindPressedEnter] {
+	} else if input.Down(ev.InputKindEnter) {
 		el.Parent.FocusJump(1)
 		return true
 	}

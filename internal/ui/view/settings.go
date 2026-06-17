@@ -1,4 +1,4 @@
-package settings
+package view
 
 import (
 	"fmt"
@@ -11,9 +11,9 @@ import (
 var Showing bool
 var Logo rl.Texture2D
 
-func Create(parent *ui.Element) {
+func CreateSettings(parent *ui.Element) {
 	var uiElem *ui.Element
-	core := ui.NewElementCoreInstance(Show, Hide, handleInputs, DrawSettings)
+	core := ui.NewElementCoreInstance(showSettings, hideSettings, settingsHandleInputs, drawSettings)
 	uiElem = ui.NewElement(0, 0, 0, 0, core, parent)
 	uiElem.Width = int32(ui.GetOptions().ScreenWidth)
 	uiElem.Height = 110
@@ -39,11 +39,11 @@ func Create(parent *ui.Element) {
 	rl.UnloadImage(image)
 }
 
-func Hide() {
+func hideSettings() {
 	ui.SettingsDialog.Visible = false
 }
 
-func Show() {
+func showSettings() {
 	if ui.SettingsDialog.Visible == false {
 		fmt.Printf("Setting uiElem.Visible to true. ID is %d.\n", ui.SettingsDialog.ID)
 		ui.SettingsDialog.Visible = true
@@ -51,7 +51,7 @@ func Show() {
 	}
 }
 
-func DrawSettings(ctx ev.EventContext, hasFocus bool) bool {
+func drawSettings(ctx ev.EventContext, hasFocus bool) bool {
 	p := ctx.EventPayload.(*ui.ElementDrawPayload)
 	rl.DrawRectangle(p.Left, p.Top, p.Element.Width, p.Element.Height, ui.WindowBg1)
 	ui.DrawText("Project", p.Left+10, p.Top, 20, ui.WindowFg1)
@@ -60,17 +60,17 @@ func DrawSettings(ctx ev.EventContext, hasFocus bool) bool {
 	return false
 }
 
-func handleInputs(input ev.InputSnapshot, el *ui.Element) bool {
+func settingsHandleInputs(input ev.InputSnapshot, el *ui.Element) bool {
 	var result bool
-	if input[ev.InputKindPressedEnter] {
+	if input.Down(ev.InputKindEnter) {
 		fmt.Printf("Hiding...")
 		ui.SettingsDialog.Parent.FocusJump(1)
-		Hide()
+		hideSettings()
 		result = true
-	} else if input[ev.InputKindPressedRight] {
+	} else if input.Down(ev.InputKindRight) {
 		ui.SettingsDialog.FocusJump(1)
 		result = true
-	} else if input[ev.InputKindPressedLeft] {
+	} else if input.Down(ev.InputKindLeft) {
 		ui.SettingsDialog.FocusJump(-1)
 		result = true
 	}

@@ -10,8 +10,7 @@ import (
 	"trkr/internal/audio"
 	ev "trkr/internal/events"
 	"trkr/internal/player"
-	"trkr/internal/ui/view/settings"
-	"trkr/internal/ui/view/track"
+	"trkr/internal/ui/view"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"os"
@@ -19,7 +18,7 @@ import (
 
 func main() {
 	audio.Init()
-	defer audio.CleanUp()
+	defer audio.Cleanup()
 	rl.SetConfigFlags(rl.FlagVsyncHint)
 	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "trkr v.0.0.1")
 	defer rl.CloseWindow()
@@ -31,13 +30,15 @@ func main() {
 	}()
 	_, err := os.Stat("autosave.json")
 	if err != nil {
+		fmt.Printf("Loading demo project...\n")
 		CurrentProject = demoProject()
 	} else {
-		project := Project{}
-		CurrentProject = &project
-		LoadProject("autosave.json")
-		project.Filename = "autosave.json"
+		CurrentProject = &Project{}
+		LoadProject("autosave.json", CurrentProject)
+		CurrentProject.Filename = "autosave.json"
 	}
+	fmt.Printf("Current project has %d tracks.\n", len(CurrentProject.Tracks))
+	fmt.Printf("CurrentProject: %v. UiTrackId: %d\n", CurrentProject, ui.TrackId)
 
 	if runtime.GOARCH == "arm64" {
 		opts := ui.GetOptions()
@@ -49,8 +50,10 @@ func main() {
 
 	ui.RootElement = &ui.Element{ID: ui.GetSpareId()}
 
-	track.Create(ui.RootElement)
-	settings.Create(ui.RootElement)
+	view.CreateTrack(ui.RootElement)
+	view.CreateSongView(ui.RootElement)
+	view.CreateSettings(ui.RootElement)
+	player.CreatePlayer(ui.RootElement)
 
 	ev.RegisterCallback(ev.EventKindInput, func(ctx ev.EventContext) bool {
 		return ui.RootElement.HandleInput(ctx.EventPayload.(ev.InputSnapshot))
@@ -75,17 +78,16 @@ func main() {
 		} else {
 			if ev.Trigger(ev.EventKindInput, ev.EventContext{
 				EventData:    nil,
-				EventPayload: ev.CalculateInputSnapshot(),
+				EventPayload: ev.CalculateInput(),
 			}) {
 				redrawFrames = 3
 				if currentFPS > 0 {
-					skipInputTriggers = int(0.1 * float32(currentFPS))
+					skipInputTriggers = int(0.2 * float32(currentFPS))
 				} else {
 					skipInputTriggers = 6
 				}
 			}
 		}
-
 		rl.BeginDrawing()
 		if redrawFrames > 0 || player.IsPlaying {
 			rl.ClearBackground(ui.WindowBg5)
@@ -102,47 +104,29 @@ func main() {
 		if ev.Trigger(ev.EventKindPostUpdate, ev.EventContext{}) {
 			redrawFrames = 3
 		}
+
+		ev.Trigger(ev.EventKindAudioUpdate, ev.EventContext{})
 		ui.CurrentFrame++
 	}
 }
 
 func demoProject() *Project {
-	currentProject := Project{
+	currentProject := &Project{
 		Filename: "autosave.json",
-		Tracks: []Track{
-			{Phrases: []Phrase{{}}},
-			{Phrases: []Phrase{{}}},
-			{Phrases: []Phrase{{}}},
-		},
 	}
+	currentPhrase := NewPhrase(currentProject)
 
-	currentTrack := &currentProject.Tracks[0]
+	currentTrack := Track{}
 	currentTrack.IsMultisample = true
 	currentTrack.Samples = []Sample{
 		{SampleFile: "./assets/music/kick.wav"},
 		{SampleFile: "./assets/music/snare.wav"},
 		{SampleFile: "./assets/music/hat.wav"},
 	}
-	currentPhrase := &currentTrack.Phrases[0]
-	for i := range currentPhrase.Steps {
-		if i%4 == 0 {
-			currentPhrase.Steps[i].Notes[0] = 1
-		}
-		if i%2 == 0 {
-			currentPhrase.Steps[i].Notes[1] = 2
-		}
-	}
+	currentTrack.Phrases = []*Phrase{currentPhrase}
+	currentTrack.PhraseIds = []int32{currentPhrase.ID}
 
-	currentTrack = &currentProject.Tracks[1]
-	currentTrack.IsMultisample = false
-	currentTrack.Sample = Sample{
-		SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2"),
-	}
+	currentProject.Tracks = append(currentProject.Tracks, currentTrack)
 
-	currentTrack = &currentProject.Tracks[2]
-	currentTrack.IsMultisample = false
-	currentTrack.Sample = Sample{
-		SampleFile: "./assets/music/key.wav", RootNote: ParseNote("C 2"),
-	}
-	return &currentProject
+	return currentProject
 }

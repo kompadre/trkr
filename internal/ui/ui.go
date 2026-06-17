@@ -6,6 +6,7 @@ import ev "trkr/internal/events"
 import "fmt"
 import "sync"
 import "slices"
+import . "trkr"
 
 type Options struct {
 	ColorHighlight  rl.Color
@@ -18,6 +19,9 @@ type Options struct {
 var ElementTreeMutex sync.Mutex
 
 var CurrentFrame uint32
+
+var TrackId int
+var PhraseId int
 
 type ElementCore interface {
 	Show()
@@ -39,30 +43,30 @@ type ElementDrawPayload struct {
 	Top     int32
 }
 
-func NewElementCoreInstance(show func(), hide func(), handleInput func(ev.InputSnapshot, *Element) bool, draw func(ev.EventContext, bool) bool) ElementCoreInstance {
-	return ElementCoreInstance{ShowCallback: show, HideCallback: hide, HandleInputCallback: handleInput, DrawCallback: draw}
+func NewElementCoreInstance(show func(), hide func(), handleInput func(ev.InputSnapshot, *Element) bool, draw func(ev.EventContext, bool) bool) *ElementCoreInstance {
+	return &ElementCoreInstance{ShowCallback: show, HideCallback: hide, HandleInputCallback: handleInput, DrawCallback: draw}
 }
 
-func (ec ElementCoreInstance) Show() {
+func (ec *ElementCoreInstance) Show() {
 	if ec.ShowCallback != nil {
 		ec.ShowCallback()
 	}
 }
 
-func (ec ElementCoreInstance) Hide() {
+func (ec *ElementCoreInstance) Hide() {
 	if ec.HideCallback != nil {
 		ec.HideCallback()
 	}
 }
 
-func (ec ElementCoreInstance) HandleInput(input ev.InputSnapshot, el *Element) bool {
+func (ec *ElementCoreInstance) HandleInput(input ev.InputSnapshot, el *Element) bool {
 	if ec.HandleInputCallback != nil {
 		return ec.HandleInputCallback(input, el)
 	}
 	return false
 }
 
-func (ec ElementCoreInstance) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (ec *ElementCoreInstance) Draw(ctx ev.EventContext, hasFocus bool) bool {
 	if ec.DrawCallback != nil {
 		return ec.DrawCallback(ctx, hasFocus)
 	}
@@ -211,30 +215,36 @@ func (e *Element) Add(c *Element, SetFocus bool) {
 
 func (e *Element) Remove() {
 	ev.RegisterCallback(ev.EventKindPostUpdate, func(ctx ev.EventContext) bool {
-		fmt.Printf("Trying to remove %v.\n", e)
-		if e.Removed {
-			return true
-		}
-
-		for _, c := range e.Children {
-			c.Remove()
-		}
-
 		if e.HasFocus() {
-			fmt.Printf("Child had focus.")
 			e.Parent.FocusedChild = nil
 		}
-
 		e.Parent.Children = slices.DeleteFunc(e.Parent.Children, func(c *Element) bool {
-			if c == e {
-				fmt.Printf("Removing that child.\n")
-			} else {
-				fmt.Printf("Not removing that child.\n")
-			}
 			return c == e
 		})
 
-		e.Removed = true
+		// 2. Define the local recursive helper function
+		var burnSubtree func(target *Element) // Declared first so it can self-reference
+		burnSubtree = func(target *Element) {
+			if target == nil || target.Removed {
+				return
+			}
+
+			// Trigger custom component cleanups (Cgo, etc.)
+			if cleanable, ok := any(target).(Cleanable); ok {
+				cleanable.Cleanup()
+			}
+
+			// Recursively cascade down the children
+			for _, c := range target.Children {
+				burnSubtree(c)
+			}
+
+			target.Removed = true
+		}
+
+		// 3. Kick off the localized destruction
+		burnSubtree(e)
+
 		return true
 	}, e.ID)
 }

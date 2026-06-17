@@ -27,7 +27,7 @@ func (d Dialog) Hide() {}
 
 func (d *Dialog) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
 	fmt.Printf("Receiving input from Dialog.\n")
-	if input[ev.InputKindPressedEnter] {
+	if input.Down(ev.InputKindEnter) {
 		el.Remove()
 		return true
 	}

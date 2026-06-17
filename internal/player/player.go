@@ -3,6 +3,7 @@ package player
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	// "golang.org/x/exp/rand"
+	"fmt"
 	"time"
 	. "trkr"
 	"trkr/internal/audio"
@@ -14,11 +15,17 @@ var StopChannel chan bool
 var IsPlaying bool
 var uiElem *ui.Element
 
+func CreatePlayer(parent *ui.Element) {
+	uiElem = ui.NewElement(0, 0, 0, 0, nil, parent)
+	uiElem.Visible = false
+}
+
 func GetElem() *ui.Element {
 	return uiElem
 }
 
 func Stop() {
+	fmt.Printf("Player is stopping...\n")
 	if IsPlaying {
 		StopChannel <- true
 		ev.ClearCallbacks(ev.EventKindTick)
@@ -59,20 +66,15 @@ func Play() {
 				phrase.CurrentStep = 0
 			}
 
-			for _, note := range phrase.Current().Notes {
-				if note == 0 {
+			for columnId, note := range phrase.Current().Notes {
+				if note == NoteNone {
 					continue
 				}
-
-				if !track.IsMultisample {
-					pitch := float32(audio.GetPitch(note, track.Sample.RootNote))
-					audio.PlaySoundMulti(trackId, pitch)
-				} else {
-					//if note == 2 {
-					//rl.SetSoundVolume(track.Samples[note-1].Sound, rand.Float32())
-					//}
-					audio.PlaySound(track.Samples[Clamp(int(note-1), 0, len(track.Samples)-1)].Sound)
+				if note == NoteSkip {
+					phrase.CurrentStep = 31
+					break
 				}
+				audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note+21)
 			}
 		}
 		return true

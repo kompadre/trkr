@@ -10,5 +10,5 @@ No stable release in sight yet so this is just floats there
   - [ ] instrument settings
   - [ ] phrase settings (start, end, loop... possibly edit sample)
   - [ ] sample settings (histogram of the waveform and the ability to fade in out and delete selection), maybe apply some baked in effects... 
-
+  - [ ] implement a stream processor, envelopes, effects... 
 

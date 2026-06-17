@@ -27,7 +27,7 @@ func (b Button) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
 	if b.Action == nil {
 		return false
 	}
-	if input[ev.InputKindPressedEnter] {
+	if input.Down(ev.InputKindEnter) {
 		b.Action(el)
 		return true
 	}
