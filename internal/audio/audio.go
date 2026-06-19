@@ -57,9 +57,6 @@ func GetPitch(note Note, rootNote Note) float64 {
 	offset := (note - rootNote) + 128
 
 	// Bounds check to prevent panics if notes go wildly out of range
-	if offset < 0 {
-		return pitchTable[0]
-	}
 	if offset > 119 {
 		return pitchTable[119]
 	}
@@ -72,12 +69,15 @@ func PlaySound(sound rl.Sound) {
 }
 
 func PlaySoundMulti(columnId uint8, trackId uint8, note Note) {
-	// Inside your Player goroutine:
+	sustainTicks := 0.5 * (VoiceSampleRate / (float64(BeatsPerMinute) / 60))
+	//sustainTicks := 4 * 24
+	waveform := WaveCustom
 	CommandQueue <- VoiceCommand{
-		TrackID:  trackId,
-		ColumnID: columnId,
-		Note:     note,
-		Waveform: WaveSawtooth,
+		TrackID:      trackId,
+		ColumnID:     columnId,
+		Note:         note,
+		Waveform:     waveform,
+		SustainTicks: uint32(sustainTicks),
 	}
 }
 

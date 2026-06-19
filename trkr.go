@@ -11,7 +11,7 @@ import (
 
 const (
 	MaxNotesInStep    = 8
-	MaxStepsInPhrase  = 32
+	MaxStepsInPhrase  = 36
 	MaxEffectsInStep  = 4
 	SemitonesInOctave = 12
 )
@@ -63,16 +63,20 @@ type Sample struct {
 	SampleFile string
 	Sound      rl.Sound `json:"-"`
 	RootNote   Note
+	Samples    []float32
 }
 
 type Track struct {
-	ID            uint8
-	CurrentPhrase int       `json:"-"`
-	Phrases       []*Phrase `json:"-"`
-	PhraseIds     []int32
-	Samples       []Sample
-	Sample        Sample
-	IsMultisample bool
+	ID                uint8
+	CurrentPhrase     int       `json:"-"`
+	Phrases           []*Phrase `json:"-"`
+	PhraseIds         []int32
+	Samples           []Sample
+	Sample            Sample
+	SampleLoopStart   float64
+	SampleLoopEnd     float64
+	CustomWaveSamples []float32
+	IsMultisample     bool
 }
 
 type Project struct {
@@ -87,20 +91,23 @@ func (p *Phrase) Current() *Step {
 }
 
 func (t *Track) Current() *Phrase {
+	if len(t.Phrases) == 0 {
+		return nil
+	}
 	return t.Phrases[t.CurrentPhrase]
 }
 
 func (t *Track) Cleanup() {
 	t.Phrases = nil
-	fmt.Printf("Cleaning up track %v\n", t)
-	if t.Sample.Sound.FrameCount != 0 {
-		rl.UnloadSound(t.Sample.Sound)
-	}
-	for sampleId := range t.Samples {
-		if t.Samples[sampleId].Sound.FrameCount != 0 {
-			rl.UnloadSound(t.Samples[sampleId].Sound)
-		}
-	}
+	//	fmt.Printf("Cleaning up track %v\n", t)
+	// if t.Sample.Sound.FrameCount != 0 {
+	// 	rl.UnloadSound(t.Sample.Sound)
+	// }
+	// for sampleId := range t.Samples {
+	// 	if t.Samples[sampleId].Sound.FrameCount != 0 {
+	// 		rl.UnloadSound(t.Samples[sampleId].Sound)
+	// 	}
+	// }
 }
 
 func (p *Project) Current() *Track {
@@ -129,6 +136,7 @@ func Clamp[T constraints.Integer](value T, min T, max T) T {
 
 func ParseNote(annotatedNote string) Note {
 	fmt.Printf("Parsing %s.\n", annotatedNote)
+
 	if annotatedNote == "--" {
 		return 0
 	} else if annotatedNote == "SK" {
@@ -140,7 +148,7 @@ func ParseNote(annotatedNote string) Note {
 	octave, _ := strconv.Atoi(annotatedNote[2:3])
 	for value, notation := range Notation {
 		if notation == toneNotation {
-			return Note((value + 1) + (12 * octave) + 21)
+			return Note((value + 1) + (12 * octave))
 		}
 	}
 	return 0
@@ -150,6 +158,8 @@ func (n Note) ToString() string {
 	switch n {
 	case NoteNone:
 		return "--"
+	case NoteCut:
+		return "CUT"
 	case NoteOff:
 		return "OFF"
 	case NoteSkip:

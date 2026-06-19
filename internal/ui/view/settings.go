@@ -2,10 +2,13 @@ package view
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
+	"strconv"
+	"trkr"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
 	"trkr/internal/ui/widget"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 var Showing bool
@@ -22,7 +25,15 @@ func CreateSettings(parent *ui.Element) {
 	uiElem.LeftPadding = 10
 	uiElem.Visible = false
 	fmt.Printf("Settings ID is %v.\n", uiElem.ID)
-	_ = widget.NewInput("Name: ", 0, 0, 150, 26, nil, uiElem)
+	projectName := widget.NewInput("Name: ", 0, 0, 150, 26, func(a any) bool {
+		trkr.Logf("Setting project filename to %s.\n", a)
+		trkr.CurrentProject.Filename = a.(string)
+		return true
+	}, uiElem)
+	projectName.SetValue(trkr.CurrentProject.Filename)
+	bpm := widget.NewInput("BPM: ", 80, 0, 120, 26, nil, uiElem)
+	bpm.WidgetType = widget.WidgetInputTypeNumber
+	bpm.SetValue(strconv.Itoa(trkr.BeatsPerMinute))
 	_ = widget.NewButton("PROJ", 0, 20, 80, 30, (func(payload any) bool {
 
 		return true

@@ -17,8 +17,6 @@ import (
 )
 
 func main() {
-	audio.Init()
-	defer audio.Cleanup()
 	rl.SetConfigFlags(rl.FlagVsyncHint)
 	rl.InitWindow(int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), "trkr v.0.0.1")
 	defer rl.CloseWindow()
@@ -37,8 +35,10 @@ func main() {
 		LoadProject("autosave.json", CurrentProject)
 		CurrentProject.Filename = "autosave.json"
 	}
+	audio.Init()
+	defer audio.Cleanup()
 	fmt.Printf("Current project has %d tracks.\n", len(CurrentProject.Tracks))
-	fmt.Printf("CurrentProject: %v. UiTrackId: %d\n", CurrentProject, ui.TrackId)
+	//fmt.Printf("CurrentProject: %v. UiTrackId: %d\n", CurrentProject, ui.TrackId)
 
 	if runtime.GOARCH == "arm64" {
 		opts := ui.GetOptions()

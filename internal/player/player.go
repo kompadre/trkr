@@ -27,6 +27,7 @@ func GetElem() *ui.Element {
 func Stop() {
 	fmt.Printf("Player is stopping...\n")
 	if IsPlaying {
+		audio.PlaySoundMulti(0, 0, NoteCut)
 		StopChannel <- true
 		ev.ClearCallbacks(ev.EventKindTick)
 	}
@@ -74,7 +75,7 @@ func Play() {
 					phrase.CurrentStep = 31
 					break
 				}
-				audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note+21)
+				audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note)
 			}
 		}
 		return true

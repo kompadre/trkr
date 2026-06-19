@@ -199,7 +199,7 @@ func handleInputTrack(input ev.InputSnapshot, el *ui.Element) bool {
 		currentCol = 0
 		result = true
 	} else if input.Down(ev.InputKindA) && input.Down(ev.InputKindDir) {
-		noteSlot := &currentTrack.Phrases[ui.PhraseId].Steps[Clamp(currentRow, 0, 31)].Notes[Clamp(currentCol, 0, 4)]
+		noteSlot := &currentTrack.Phrases[ui.PhraseId].Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Notes[Clamp(currentCol, 0, MaxNotesInStep)]
 		if input.Down(ev.InputKindRight) {
 			*noteSlot++
 		} else if input.Down(ev.InputKindLeft) {

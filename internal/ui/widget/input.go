@@ -2,10 +2,20 @@ package widget
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
+	"strconv"
 	"strings"
+	"trkr"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
+type WidgetInputType uint8
+
+const (
+	WidgetInputTypeString WidgetInputType = iota
+	WidgetInputTypeNumber
 )
 
 type Input struct {
@@ -13,6 +23,7 @@ type Input struct {
 	Label       string
 	Value       [8]rune
 	ValueStr    string
+	WidgetType  WidgetInputType
 	FocusedChar uint8
 }
 
@@ -32,6 +43,68 @@ func (in Input) Hide()    {}
 func (in Input) Cleanup() {}
 
 func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
+	switch in.WidgetType {
+	case WidgetInputTypeNumber:
+		return in.HandleInputNumber(input, el)
+	default:
+		return in.HandleInputText(input, el)
+	}
+}
+
+func (in *Input) SetValue(value string) {
+	in.ValueStr = value
+	for i, v := range value {
+		if i >= 8 {
+			break
+		}
+
+		in.Value[i] = v
+	}
+}
+
+func (in *Input) HandleInputNumber(input ev.InputSnapshot, el *ui.Element) bool {
+	if input.Down(ev.InputKindDir) {
+		var err error
+		var inputValue int
+		if inputValue, err = strconv.Atoi(in.ValueStr); err != nil {
+			inputValue = 0
+		}
+		if input.Down(ev.InputKindDown) {
+			if input.Tick(ev.InputKindDown) > 10 {
+				inputValue -= 10
+			} else {
+				inputValue--
+			}
+		} else if input.Down(ev.InputKindUp) {
+			if input.Tick(ev.InputKindUp) > 10 {
+				inputValue += 10
+			} else {
+				inputValue++
+			}
+		}
+
+		if inputValue > 60 && inputValue < 300 {
+			trkr.BeatsPerMinute = inputValue
+			in.ValueStr = strconv.Itoa(inputValue)
+			for i, runeValue := range in.ValueStr {
+				in.Value[i] = runeValue
+			}
+		}
+		return true
+	} else if input.Down(ev.InputKindEnter) {
+		if in.Action != nil {
+			if !in.Action(in.ValueStr) {
+				return false
+			}
+		}
+		el.Parent.FocusJump(1)
+		return true
+	}
+
+	return false
+}
+
+func (in *Input) HandleInputText(input ev.InputSnapshot, el *ui.Element) bool {
 	if input.Down(ev.InputKindDir) {
 		if input.Down(ev.InputKindUp) {
 			in.Value[in.FocusedChar]++
@@ -58,6 +131,11 @@ func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
 		fmt.Printf("ValueStr: %v, FocusedChar: %d.\n", in.ValueStr, in.FocusedChar)
 		return true
 	} else if input.Down(ev.InputKindEnter) {
+		if in.Action != nil {
+			if !in.Action(in.ValueStr) {
+				return false
+			}
+		}
 		el.Parent.FocusJump(1)
 		return true
 	}
