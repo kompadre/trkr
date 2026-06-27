@@ -21,7 +21,7 @@ const EventGamepadDeadZone = 0.1
 
 type EventContext struct {
 	EventData    []byte
-	EventPayload interface{}
+	EventPayload any
 }
 
 type EventCallback func(EventContext) bool
@@ -83,7 +83,13 @@ type InputSnapshot struct {
 
 var PrevHoldTimers [InputKindLast]uint16
 
-func CalculateInput() InputSnapshot {
+func (is *InputSnapshot) ClearHoldTimers(args ...InputStatus) {
+	for _, v := range args {
+		is.HoldTimers[v] = 0
+	}
+}
+
+func CalculateInput(result *InputSnapshot) {
 	var CurrentSnapshot InputStatus = 0
 	gamepadAxisLeftX := rl.GetGamepadAxisMovement(0, rl.GamepadAxisLeftX)
 	gamepadAxisLeftY := rl.GetGamepadAxisMovement(0, rl.GamepadAxisLeftY)
@@ -103,7 +109,7 @@ func CalculateInput() InputSnapshot {
 			CurrentSnapshot = CurrentSnapshot | InputKindDown
 		}
 	}
-	result := InputSnapshot{HoldTimers: PrevHoldTimers}
+	// result := InputSnapshot{HoldTimers: PrevHoldTimers}
 	dirIsHeld := false
 	for i := range RawInputCodes {
 		if rl.IsKeyDown(int32(RawInputCodes[i])) {
@@ -127,7 +133,6 @@ func CalculateInput() InputSnapshot {
 	result.Released = ^CurrentSnapshot & PrevSnapshot
 	PrevSnapshot = CurrentSnapshot
 	PrevHoldTimers = result.HoldTimers
-	return result
 }
 
 func (in InputSnapshot) Tick(code InputStatus) uint16 {

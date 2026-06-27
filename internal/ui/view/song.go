@@ -70,7 +70,7 @@ func (pv *SongView) Draw(ctx ev.EventContext, hasFocus bool) bool {
 	return false
 }
 
-func (pv *SongView) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
+func (pv *SongView) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 
 	if songCurrentRow < 1 && input.Down(ev.InputKindA) {
 		showSettings()

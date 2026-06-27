@@ -10,7 +10,9 @@ import (
 
 	//	"math/rand"
 	//	"time"
+	"path"
 	. "trkr"
+	"trkr/external/msfa"
 )
 
 func Init() {
@@ -18,7 +20,51 @@ func Init() {
 	initPitchTable()
 	rl.SetAudioStreamBufferSizeDefault(VoiceBufferSize)
 	rl.InitAudioDevice() // Initialize audio device
+	SynthInstance = msfa.NewSynth(VoiceSampleRate)
+	SynthInstance.LoadPatch("./assets/syx/Dexed_01.syx")
 	InitVoiceMasterStream()
+	synthPlayingNotes = make(map[NoteGridCoord]Note)
+	for _, t := range CurrentProject.Tracks {
+		if t.Instrument.SampleSourceType == SampleSourceTypeFm {
+			SynthInstance.ChangeProgram(t.Id, t.Instrument.Program)
+		}
+	}
+	PlayFmPickup()
+}
+
+func PlayFmPickup() {
+	// Special synth voice that picks up already mixed multitimbral samples from MSFA
+	if VoiceFm == nil {
+		for i := range voicePool {
+			if voicePool[i].Instrument != nil && voicePool[i].Instrument.SampleSourceType == SampleSourceTypeFmPickup {
+				VoiceFm = voicePool[i]
+				break
+			}
+		}
+	}
+	if VoiceFm == nil {
+		VoiceFm = FindFreeVoice(0xff, 0xff, 0xff)
+	}
+
+	var instrument *Instrument
+	for i := range CurrentProject.Instruments {
+		if CurrentProject.Instruments[i].SampleSourceType == SampleSourceTypeFmPickup {
+			instrument = &CurrentProject.Instruments[i]
+			break
+		}
+	}
+
+	if instrument == nil {
+		instrument = NewInstrument(CurrentProject)
+		instrument.SampleSourceType = SampleSourceTypeFmPickup
+	}
+
+	VoiceFm.Volume = 1.0
+	VoiceFm.TrackId = 0xff
+	VoiceFm.ColumnId = 0xff
+	VoiceFm.Instrument = instrument
+	VoiceFm.InstrumentId = instrument.Id
+	VoiceFm.Play()
 }
 
 // Global or package-level lookup table
@@ -26,8 +72,16 @@ const AliasPoolSize = 32
 const A4Hertz = 440.0
 const A4Midi = 69
 
+type NoteGridCoord struct {
+	TrackId  uint8
+	ColumnId uint8
+}
+
 var pitchTable [120]float64
 var frequenciesTable [120]float64
+var SynthInstance *msfa.Synth
+var synthPlayingNotes map[NoteGridCoord]Note
+var VoiceFm *Voice
 
 func initPitchTable() {
 	// Pre-calculate pitch multipliers for relative note offsets from -128 to 127
@@ -68,16 +122,50 @@ func PlaySound(sound rl.Sound) {
 	rl.PlaySound(sound)
 }
 
-func PlaySoundMulti(columnId uint8, trackId uint8, note Note) {
+func PlaySoundMulti(columnId uint8, trackId uint8, note Note, instrumentId uint8, sampleSourceType SampleSourceType, velocity uint8) {
 	sustainTicks := 0.5 * (VoiceSampleRate / (float64(BeatsPerMinute) / 60))
 	//sustainTicks := 4 * 24
-	waveform := WaveCustom
 	CommandQueue <- VoiceCommand{
-		TrackID:      trackId,
-		ColumnID:     columnId,
-		Note:         note,
-		Waveform:     waveform,
-		SustainTicks: uint32(sustainTicks),
+		TrackId:          trackId,
+		ColumnId:         columnId,
+		InstrumentId:     instrumentId,
+		Note:             note,
+		SustainTicks:     uint32(sustainTicks),
+		SampleSourceType: sampleSourceType,
+		Velocity:         Clamp(velocity, 0, 127),
+	}
+}
+
+func SynthPatchName() string {
+	return path.Base(SynthInstance.PatchPath)
+}
+
+func SynthProgramName(ch uint8) string {
+	return SynthInstance.Programs[SynthInstance.ChannelPrograms[ch]]
+}
+
+func PlaySoundFm(columnId uint8, trackId uint8, note Note, velocity uint8) {
+	if SynthInstance == nil {
+		return // Protect against uninitialized global pointer
+	}
+	coord := NoteGridCoord{TrackId: trackId, ColumnId: columnId}
+	notePlaying, isPlaying := synthPlayingNotes[coord]
+
+	// Calculate correct MIDI command nibbles dynamically per track
+	noteOffCmd := 0x80 + trackId
+	noteOnCmd := 0x90 + trackId
+
+	if note == NoteOff {
+		if isPlaying {
+			SynthInstance.WriteMidi([]byte{noteOffCmd, byte(notePlaying), 0})
+			delete(synthPlayingNotes, coord)
+		}
+	} else {
+		if isPlaying {
+			SynthInstance.WriteMidi([]byte{noteOffCmd, byte(notePlaying), 0})
+		}
+		SynthInstance.WriteMidi([]byte{noteOnCmd, byte(note), velocity})
+		synthPlayingNotes[coord] = note
 	}
 }
 
@@ -94,6 +182,7 @@ func Cleanup() {
 	}
 
 	rl.CloseAudioDevice()
+	// synth.Free()
 }
 
 func waveHeader(buf *bytes.Buffer, nSamples uint32, sampleRate uint32) {

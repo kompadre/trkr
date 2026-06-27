@@ -42,7 +42,7 @@ func (in Input) Show() {}
 func (in Input) Hide()    {}
 func (in Input) Cleanup() {}
 
-func (in *Input) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
+func (in *Input) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 	switch in.WidgetType {
 	case WidgetInputTypeNumber:
 		return in.HandleInputNumber(input, el)
@@ -62,7 +62,7 @@ func (in *Input) SetValue(value string) {
 	}
 }
 
-func (in *Input) HandleInputNumber(input ev.InputSnapshot, el *ui.Element) bool {
+func (in *Input) HandleInputNumber(input *ev.InputSnapshot, el *ui.Element) bool {
 	if input.Down(ev.InputKindDir) {
 		var err error
 		var inputValue int
@@ -104,7 +104,7 @@ func (in *Input) HandleInputNumber(input ev.InputSnapshot, el *ui.Element) bool 
 	return false
 }
 
-func (in *Input) HandleInputText(input ev.InputSnapshot, el *ui.Element) bool {
+func (in *Input) HandleInputText(input *ev.InputSnapshot, el *ui.Element) bool {
 	if input.Down(ev.InputKindDir) {
 		if input.Down(ev.InputKindUp) {
 			in.Value[in.FocusedChar]++
@@ -118,9 +118,8 @@ func (in *Input) HandleInputText(input ev.InputSnapshot, el *ui.Element) bool {
 			}
 			in.FocusedChar++
 		}
-		if in.Value[in.FocusedChar] == '\x01' || in.Value[in.FocusedChar] == '\x00' || in.Value[in.FocusedChar] > 'Z' {
-			in.Value[in.FocusedChar] = ' '
-		} else if in.Value[in.FocusedChar] == (1 + ' ') {
+
+		if in.Value[in.FocusedChar] == (1 + ' ') {
 			in.Value[in.FocusedChar] = 'A'
 		} else if in.Value[in.FocusedChar] == (-1 + ' ') {
 			in.Value[in.FocusedChar] = 'Z'
@@ -129,6 +128,11 @@ func (in *Input) HandleInputText(input ev.InputSnapshot, el *ui.Element) bool {
 		}
 		in.ValueStr = strings.TrimRight(string(in.Value[:]), "\x00")
 		fmt.Printf("ValueStr: %v, FocusedChar: %d.\n", in.ValueStr, in.FocusedChar)
+		return true
+	} else if input.Down(ev.InputKindB) {
+		in.Value[in.FocusedChar] = ' '
+		in.FocusedChar = trkr.Clamp(in.FocusedChar-1, 0, 7)
+		in.ValueStr = strings.TrimRight(string(in.Value[:]), " ")
 		return true
 	} else if input.Down(ev.InputKindEnter) {
 		if in.Action != nil {
@@ -143,44 +147,44 @@ func (in *Input) HandleInputText(input ev.InputSnapshot, el *ui.Element) bool {
 }
 
 func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
-	var left, top, width, height int32
 	p := ctx.EventPayload.(*ui.ElementDrawPayload)
-	if p != nil {
-		left = p.Left + p.Element.Left
-		top = p.Top + p.Element.Top
-		width = p.Element.Width
-		height = p.Element.Height
+	if p == nil {
+		return false
 	}
 
-	bgcolor := ui.InputBg1
-	fgcolor := ui.WindowFg1
-	preffix := ""
-	if hasFocus {
-		preffix = ">"
-	}
-
-	ui.DrawText(preffix+in.Label, left, top+2, 20, fgcolor)
-	rl.DrawRectangle(left+60, top, width-60, height, bgcolor)
-	var extraLeft int32 = 65
-	var underLeft int32
-	for i := range 8 {
-		if in.Value[i] == 'I' {
-			extraLeft += 0
-		}
-		ui.DrawText(string(in.Value[i]), left+extraLeft, top+2, 20, fgcolor)
-		if i == int(in.FocusedChar) {
-			underLeft = extraLeft
+	if rec, v := p.Laid.Col(12, 12, 12, 12); v {
+		// bgcolor := ui.InputBg1
+		fgcolor := ui.WindowFg1
+		preffix := ""
+		if hasFocus {
+			preffix = ">"
 		}
 
-		extraLeft += 10
+		ui.DrawText(preffix+in.Label, int32(rec.X), int32(rec.Y+2), 20, fgcolor)
+		// rl.DrawRectangleRec(rec, bgcolor)
+		var extraLeft int32 = 65
+		var underLeft int32
+		for i := range 8 {
+			if in.Value[i] == 'I' {
+				extraLeft += 0
+			}
+			ui.DrawText(string(in.Value[i]), int32(rec.X)+extraLeft, int32(rec.Y+2), 20, fgcolor)
+			if i == int(in.FocusedChar) {
+				underLeft = extraLeft
+			}
 
-		if in.Value[i] == 0 {
-			break
+			extraLeft += 10
+
+			if in.Value[i] == 0 {
+				break
+			}
 		}
+		// ui.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
+		if hasFocus {
+			rl.DrawText("_", int32(rec.X)+underLeft, int32(rec.Y+6), 20, fgcolor)
+		}
+
 	}
-	// ui.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
-	if hasFocus {
-		rl.DrawText("_", left+underLeft, top+6, 20, fgcolor)
-	}
+
 	return false
 }

@@ -17,15 +17,13 @@ type Dialog struct {
 func NewDialog(label string, text string, relativeLeft int32, relativeTop int32, width int32, height int32, action ui.Action, parent *ui.Element) *ui.Element {
 	d := &Dialog{Label: label, Action: action, Text: text}
 	el := ui.NewElement(relativeLeft, relativeTop, width, height, d, parent)
-	el.Width = width
-	el.Height = height
 	return el
 }
 
 func (d Dialog) Show() {}
 func (d Dialog) Hide() {}
 
-func (d *Dialog) HandleInput(input ev.InputSnapshot, el *ui.Element) bool {
+func (d *Dialog) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 	fmt.Printf("Receiving input from Dialog.\n")
 	if input.Down(ev.InputKindEnter) {
 		el.Remove()

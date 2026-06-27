@@ -11,7 +11,7 @@ import (
 
 const (
 	MaxNotesInStep    = 8
-	MaxStepsInPhrase  = 36
+	MaxStepsInPhrase  = 16
 	MaxEffectsInStep  = 4
 	SemitonesInOctave = 12
 )
@@ -40,15 +40,22 @@ type Step struct {
 }
 
 type Phrase struct {
-	ID          int32
-	CurrentStep int `json:"-"`
-	Steps       [MaxStepsInPhrase]Step
+	ID            int32
+	CurrentStep   int `json:"-"`
+	Repeats       uint8
+	CurrentRepeat uint8 `json:"-"`
+	Steps         [MaxStepsInPhrase]Step
 }
 
 func NewPhrase(pr *Project) *Phrase {
-	p := Phrase{ID: int32(len(pr.Phrases))}
-	pr.Phrases = append(pr.Phrases, p)
-	return &p
+	pr.Phrases = append(pr.Phrases, Phrase{ID: int32(len(pr.Phrases))})
+	return &pr.Phrases[len(pr.Phrases)-1]
+}
+
+func NewInstrument(pr *Project) *Instrument {
+	id := uint8(len(pr.Instruments))
+	pr.Instruments = append(pr.Instruments, Instrument{Id: id})
+	return &pr.Instruments[len(pr.Instruments)-1]
 }
 
 func (p *Phrase) Clone() *Phrase {
@@ -58,7 +65,7 @@ func (p *Phrase) Clone() *Phrase {
 	return &result
 }
 
-type Sample struct {
+type _Sample struct {
 	Loaded     bool `json:"-"`
 	SampleFile string
 	Sound      rl.Sound `json:"-"`
@@ -66,17 +73,96 @@ type Sample struct {
 	Samples    []float32
 }
 
+//go:generate stringer -type=SampleSourceType -trimprefix=SampleSourceType
+type SampleSourceType uint8
+
+const (
+	SampleSourceTypeWavefile SampleSourceType = iota
+	SampleSourceTypeSquare
+	SampleSourceTypeSawtooth
+	SampleSourceTypeCosine
+	SampleSourceTypeFm
+	SampleSourceTypeFmPickup
+)
+
+const (
+	VoiceSampleRate = 48000.0
+	VoiceBufferSize = 2048 // 1440 // 512 // 512 // 4096
+	VoicePoolSize   = 16
+)
+
+func (sst SampleSourceType) UiString() string {
+	switch sst {
+	case SampleSourceTypeWavefile:
+		return "Wavefile"
+	case SampleSourceTypeSquare:
+		return "Square"
+	case SampleSourceTypeCosine:
+		return "Cosine"
+	case SampleSourceTypeSawtooth:
+		return "Sawtooth"
+	case SampleSourceTypeFm:
+		return "FM"
+	case SampleSourceTypeFmPickup:
+		return "FM pickup"
+	}
+	return "Dunno"
+}
+
+type Instrument struct {
+	Id               uint8
+	IsMulti          bool
+	RootNote         Note
+	SampleSourceType SampleSourceType
+	SampleSource     string
+	Samples          []float32 `json:"-"`
+	LoopStart        float64
+	LoopEnd          float64
+	Instruments      []*Instrument `json:"-"`
+	InstrumentIds    []int
+	SamplesLoaded    bool `json:"-"`
+	Program          uint8
+}
+
+func (in *Instrument) LoadSamples() {
+	Logf("Loading samples for instrument %d.\n", in.Id)
+	wav := rl.LoadWave(in.SampleSource)
+	rl.WaveFormat(&wav, VoiceSampleRate, 32, 1)
+	defer rl.UnloadWave(wav)
+	tmp := rl.LoadWaveSamples(wav)
+	defer rl.UnloadWaveSamples(tmp)
+	in.Samples = make([]float32, len(tmp))
+	copy(in.Samples, tmp)
+	in.SamplesLoaded = true
+}
+
 type Track struct {
-	ID                uint8
-	CurrentPhrase     int       `json:"-"`
-	Phrases           []*Phrase `json:"-"`
-	PhraseIds         []int32
-	Samples           []Sample
-	Sample            Sample
-	SampleLoopStart   float64
-	SampleLoopEnd     float64
-	CustomWaveSamples []float32
-	IsMultisample     bool
+	Id             uint8
+	Instrument     *Instrument `json:"-"`
+	InstrumentId   uint8
+	CurrentProgram int
+	CurrentPhrase  int       `json:"-"`
+	Phrases        []*Phrase `json:"-"`
+	PhraseIds      []int32
+	Volume         float64
+	SkipsLeft      uint8
+	Skips          uint8
+}
+
+func NewTrack(p *Project) *Track {
+	result := Track{}
+	result.Id = uint8(len(p.Tracks))
+	result.Volume = 1.0
+	newPhrase := NewPhrase(p)
+	newInstrument := NewInstrument(p)
+	newInstrument.SampleSourceType = SampleSourceTypeFm
+	newInstrument.Program = 0
+	result.Phrases = []*Phrase{newPhrase}
+	result.PhraseIds = []int32{newPhrase.ID}
+	result.InstrumentId = newInstrument.Id
+	result.Instrument = newInstrument
+	p.Tracks = append(p.Tracks, result)
+	return &p.Tracks[len(p.Tracks)-1]
 }
 
 type Project struct {
@@ -84,6 +170,7 @@ type Project struct {
 	Tracks       []Track
 	Filename     string
 	Phrases      []Phrase
+	Instruments  []Instrument
 }
 
 func (p *Phrase) Current() *Step {
@@ -98,16 +185,18 @@ func (t *Track) Current() *Phrase {
 }
 
 func (t *Track) Cleanup() {
-	t.Phrases = nil
+	//	t.Phrases = nil
 	//	fmt.Printf("Cleaning up track %v\n", t)
-	// if t.Sample.Sound.FrameCount != 0 {
-	// 	rl.UnloadSound(t.Sample.Sound)
-	// }
-	// for sampleId := range t.Samples {
-	// 	if t.Samples[sampleId].Sound.FrameCount != 0 {
-	// 		rl.UnloadSound(t.Samples[sampleId].Sound)
-	// 	}
-	// }
+	//
+	//	if t.Sample.Sound.FrameCount != 0 {
+	//		rl.UnloadSound(t.Sample.Sound)
+	//	}
+	//
+	//	for sampleId := range t.Samples {
+	//		if t.Samples[sampleId].Sound.FrameCount != 0 {
+	//			rl.UnloadSound(t.Samples[sampleId].Sound)
+	//		}
+	//	}
 }
 
 func (p *Project) Current() *Track {
@@ -120,12 +209,12 @@ func ResetHead() {
 	for trackId := range CurrentProject.Tracks {
 		CurrentProject.Tracks[trackId].CurrentPhrase = 0
 		for phraseId := range CurrentProject.Tracks[trackId].Phrases {
-			CurrentProject.Tracks[trackId].Phrases[phraseId].CurrentStep = -1
+			CurrentProject.Tracks[trackId].Phrases[phraseId].CurrentStep = 0
 		}
 	}
 }
 
-func Clamp[T constraints.Integer](value T, min T, max T) T {
+func Clamp[T constraints.Ordered](value T, min T, max T) T {
 	if value < min {
 		return min
 	} else if value > max {
@@ -137,11 +226,12 @@ func Clamp[T constraints.Integer](value T, min T, max T) T {
 func ParseNote(annotatedNote string) Note {
 	fmt.Printf("Parsing %s.\n", annotatedNote)
 
-	if annotatedNote == "--" {
+	switch annotatedNote {
+	case "--":
 		return 0
-	} else if annotatedNote == "SK" {
+	case "SK":
 		return NoteSkip
-	} else if annotatedNote == "OFF" {
+	case "OFF":
 		return NoteOff
 	}
 	toneNotation := annotatedNote[0:2]
@@ -165,7 +255,14 @@ func (n Note) ToString() string {
 	case NoteSkip:
 		return "SKP"
 	default:
-		return fmt.Sprintf("%s%d", Notation[(n-1)%SemitonesInOctave], (n-1)/12)
+		N := n - 11
+		octave := int8((N - 1) / 12)
+		if octave >= 21 {
+			octave = 0
+		} else if octave >= 20 {
+			octave = -1
+		}
+		return fmt.Sprintf("%s%d", Notation[(N-1)%SemitonesInOctave], octave)
 	}
 }
 
@@ -182,8 +279,14 @@ func LoadProject(path string, p *Project) error {
 		p.Tracks[t].Phrases = make([]*Phrase, len(p.Tracks[t].PhraseIds))
 		for idx, id := range CurrentProject.Tracks[t].PhraseIds {
 			fmt.Printf("Appending phrase.\n")
-			CurrentProject.Tracks[t].Phrases[idx] = &CurrentProject.Phrases[id]
+			if id >= int32(len(CurrentProject.Phrases)) {
+				id = 0
+				rl.TraceLog(rl.LogWarning, "Couldn't match phrase id %d, Project.Phrases is smaller\n", id)
+				continue
+			}
+			p.Tracks[t].Phrases[idx] = &CurrentProject.Phrases[id]
 		}
+		p.Tracks[t].Instrument = &p.Instruments[p.Tracks[t].InstrumentId]
 	}
 	return nil
 }
@@ -205,6 +308,28 @@ func SaveProject() error {
 
 var Notation = [SemitonesInOctave]string{"C ", "C#", "D ", "D#", "E ", "F ", "F#", "G ", "G#", "A ", "A#", "B "}
 
+var throttledLogsNum = 0
+var previousLog string = ""
+
 func Logf(format string, args ...any) {
-	fmt.Printf(format, args...)
+	result := fmt.Sprintf(format, args...)
+	if result == previousLog {
+		throttledLogsNum++
+		return
+	}
+
+	if throttledLogsNum > 0 {
+		fmt.Printf("[%dx]\n%s\n", throttledLogsNum, previousLog)
+		throttledLogsNum = 0
+	}
+	fmt.Print(result)
+	previousLog = result
+}
+
+// Static compile-time assertion:
+// If our RGBA function stops returning a valid raylib.Color, this won't compile.
+var _ rl.Color = RGBA(0, 0, 0, 0)
+
+func RGBA(r, g, b, a uint8) rl.Color {
+	return rl.Color{R: r, G: g, B: b, A: a}
 }

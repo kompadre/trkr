@@ -2,9 +2,8 @@ package ui
 
 import (
 	"fmt"
-	ev "trkr/internal/events"
-
 	rl "github.com/gen2brain/raylib-go/raylib"
+	ev "trkr/internal/events"
 )
 
 type Transition struct {
@@ -35,11 +34,9 @@ func NewTransition(parent *Element, dir rl.Vector2) *Element {
 	rl.BeginTextureMode(inverted)
 	rl.ClearBackground(WindowBg5)
 	rl.DrawTexture(bg, 0, 0, rl.White)
-	uiDrawPayload := ElementDrawPayload{}
-	ev.Trigger(ev.EventKindUpdate, ev.EventContext{
-		EventData:    nil,
-		EventPayload: &uiDrawPayload,
-	})
+	laid := Laid{}
+	laid.SetBreakpoint(rl.GetScreenWidth())
+	ev.Trigger(ev.EventKindUpdate, ev.EventContext{EventPayload: &ElementDrawPayload{Laid: &laid}})
 	rl.EndTextureMode()
 
 	rl.BeginTextureMode(t.Render)
@@ -56,7 +53,6 @@ func NewTransition(parent *Element, dir rl.Vector2) *Element {
 func (t *Transition) Show() {}
 func (t *Transition) Hide() {}
 func (t *Transition) Draw(ctx ev.EventContext, hasFocus bool) bool {
-	fmt.Printf("Drawing transition...")
 	if t.Dir.X != t.Dir.Y {
 		srcRect := rl.NewRectangle(0, 0, float32(GetOptions().ScreenWidth), float32(GetOptions().ScreenHeight))
 		rl.DrawTextureRec(t.Render.Texture, srcRect, t.Pos, t.Tint)
@@ -92,10 +88,10 @@ func (t *Transition) Draw(ctx ev.EventContext, hasFocus bool) bool {
 			rl.UnloadRenderTexture(t.Render)
 		}
 	}
-	return false
+	return true
 }
 
-func (t *Transition) HandleInput(input ev.InputSnapshot, el *Element) bool {
+func (t *Transition) HandleInput(input *ev.InputSnapshot, el *Element) bool {
 	fmt.Printf("Handling Input for transition.\n")
 	return true
 }

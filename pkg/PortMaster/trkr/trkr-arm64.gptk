@@ -1,0 +1,28 @@
+back = esc
+start = space
+
+a = a
+b = b
+x = x
+y = y
+
+l1 = l
+l2 = enter
+
+r1 = r
+r2 = o
+
+up = up
+down = down
+left = left
+right = right
+
+left_analog_up = z
+left_analog_down = x
+left_analog_left = c
+left_analog_right = v
+
+right_analog_up = u
+right_analog_down = i
+right_analog_left = o
+right_analog_right = p
