@@ -20,9 +20,12 @@ func Init() {
 	initPitchTable()
 	rl.SetAudioStreamBufferSizeDefault(VoiceBufferSize)
 	rl.InitAudioDevice() // Initialize audio device
-	SynthInstance = msfa.NewSynth(VoiceSampleRate)
-	SynthInstance.LoadPatch("./assets/syx/Dexed_01.syx")
 	InitVoiceMasterStream()
+	if CurrentProject.FmPatchName == "" {
+		CurrentProject.FmPatchName = "./assets/syx/Dexed_01.syx"
+	}
+	SynthInstance = msfa.NewSynth(VoiceSampleRate)
+	SynthInstance.LoadPatch(CurrentProject.FmPatchName)
 	synthPlayingNotes = make(map[NoteGridCoord]Note)
 	for _, t := range CurrentProject.Tracks {
 		if t.Instrument.SampleSourceType == SampleSourceTypeFm {
@@ -122,7 +125,7 @@ func PlaySound(sound rl.Sound) {
 	rl.PlaySound(sound)
 }
 
-func PlaySoundMulti(columnId uint8, trackId uint8, note Note, instrumentId uint8, sampleSourceType SampleSourceType, velocity uint8) {
+func PlaySoundMulti(columnId uint8, trackId uint8, note Note, instrumentId uint8, sampleSourceType SampleSourceType, velocity uint8, volume float64) {
 	sustainTicks := 0.5 * (VoiceSampleRate / (float64(BeatsPerMinute) / 60))
 	//sustainTicks := 4 * 24
 	CommandQueue <- VoiceCommand{
@@ -133,6 +136,7 @@ func PlaySoundMulti(columnId uint8, trackId uint8, note Note, instrumentId uint8
 		SustainTicks:     uint32(sustainTicks),
 		SampleSourceType: sampleSourceType,
 		Velocity:         Clamp(velocity, 0, 127),
+		Volume:           Clamp(volume, 0.0, 1.0),
 	}
 }
 
@@ -141,32 +145,52 @@ func SynthPatchName() string {
 }
 
 func SynthProgramName(ch uint8) string {
+	if SynthInstance == nil || len(SynthInstance.Programs) < 1 {
+		return "-"
+	}
 	return SynthInstance.Programs[SynthInstance.ChannelPrograms[ch]]
+}
+
+func StopSoundFm(columnId uint8, trackId uint8) {
+	noteOffCmd := 0x80 + trackId
+	coord := NoteGridCoord{TrackId: trackId, ColumnId: columnId}
+	if notePlaying, isPlaying := synthPlayingNotes[coord]; isPlaying {
+		SynthInstance.WriteMidi([]byte{noteOffCmd, byte(notePlaying), 127})
+		delete(synthPlayingNotes, coord)
+	}
+}
+
+func StopFm() {
+	for k := range synthPlayingNotes {
+		StopSoundFm(k.ColumnId, k.TrackId)
+	}
+	// Drain synth's samples
+	var drainBuffer [512]int16
+	for range 512 {
+		SynthInstance.GetSamples(drainBuffer[:])
+	}
+	VoiceFm.Envelope.State = EnvIdle
 }
 
 func PlaySoundFm(columnId uint8, trackId uint8, note Note, velocity uint8) {
 	if SynthInstance == nil {
 		return // Protect against uninitialized global pointer
 	}
+
 	coord := NoteGridCoord{TrackId: trackId, ColumnId: columnId}
 	notePlaying, isPlaying := synthPlayingNotes[coord]
 
 	// Calculate correct MIDI command nibbles dynamically per track
-	noteOffCmd := 0x80 + trackId
 	noteOnCmd := 0x90 + trackId
+	noteOffCmd := 0x80 + trackId
 
-	if note == NoteOff {
-		if isPlaying {
-			SynthInstance.WriteMidi([]byte{noteOffCmd, byte(notePlaying), 0})
-			delete(synthPlayingNotes, coord)
-		}
-	} else {
-		if isPlaying {
-			SynthInstance.WriteMidi([]byte{noteOffCmd, byte(notePlaying), 0})
-		}
-		SynthInstance.WriteMidi([]byte{noteOnCmd, byte(note), velocity})
-		synthPlayingNotes[coord] = note
+	if isPlaying {
+		SynthInstance.WriteMidi([]byte{noteOffCmd, byte(notePlaying), 127})
+		delete(synthPlayingNotes, coord)
 	}
+
+	SynthInstance.WriteMidi([]byte{noteOnCmd, byte(note), velocity})
+	synthPlayingNotes[coord] = note
 }
 
 func Cleanup() {

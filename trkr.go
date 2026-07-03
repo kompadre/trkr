@@ -3,10 +3,11 @@ package trkr
 import (
 	"encoding/json"
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
-	"golang.org/x/exp/constraints"
 	"os"
 	"strconv"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -88,7 +89,7 @@ const (
 const (
 	VoiceSampleRate = 48000.0
 	VoiceBufferSize = 2048 // 1440 // 512 // 512 // 4096
-	VoicePoolSize   = 16
+	VoicePoolSize   = 64
 )
 
 func (sst SampleSourceType) UiString() string {
@@ -114,25 +115,27 @@ type Instrument struct {
 	IsMulti          bool
 	RootNote         Note
 	SampleSourceType SampleSourceType
-	SampleSource     string
-	Samples          []float32 `json:"-"`
+	SampleSource     [3]string
+	Samples          [3][]float32 `json:"-"`
 	LoopStart        float64
 	LoopEnd          float64
-	Instruments      []*Instrument `json:"-"`
-	InstrumentIds    []int
 	SamplesLoaded    bool `json:"-"`
 	Program          uint8
 }
 
 func (in *Instrument) LoadSamples() {
 	Logf("Loading samples for instrument %d.\n", in.Id)
-	wav := rl.LoadWave(in.SampleSource)
-	rl.WaveFormat(&wav, VoiceSampleRate, 32, 1)
+	var wav rl.Wave
 	defer rl.UnloadWave(wav)
-	tmp := rl.LoadWaveSamples(wav)
-	defer rl.UnloadWaveSamples(tmp)
-	in.Samples = make([]float32, len(tmp))
-	copy(in.Samples, tmp)
+
+	for i := range in.SampleSource {
+		if in.SampleSource[i] == "" {
+			continue
+		}
+		wav = rl.LoadWave(in.SampleSource[i])
+		rl.WaveFormat(&wav, VoiceSampleRate, 32, 1)
+		in.Samples[i] = rl.LoadWaveSamples(wav)
+	}
 	in.SamplesLoaded = true
 }
 
@@ -171,10 +174,11 @@ type Project struct {
 	Filename     string
 	Phrases      []Phrase
 	Instruments  []Instrument
+	FmPatchName  string
 }
 
 func (p *Phrase) Current() *Step {
-	return &p.Steps[p.CurrentStep]
+	return &p.Steps[Clamp(p.CurrentStep, 0, len(p.Steps)-1)]
 }
 
 func (t *Track) Current() *Phrase {
@@ -206,21 +210,23 @@ func (p *Project) Current() *Track {
 var CurrentProject *Project
 
 func ResetHead() {
+	Logf("Resetting head!\n")
 	for trackId := range CurrentProject.Tracks {
 		CurrentProject.Tracks[trackId].CurrentPhrase = 0
-		for phraseId := range CurrentProject.Tracks[trackId].Phrases {
-			CurrentProject.Tracks[trackId].Phrases[phraseId].CurrentStep = 0
-		}
+	}
+	for phraseId := range CurrentProject.Phrases {
+		p := &CurrentProject.Phrases[phraseId]
+		p.CurrentStep = 0
+		p.CurrentRepeat = 0
 	}
 }
 
-func Clamp[T constraints.Ordered](value T, min T, max T) T {
-	if value < min {
-		return min
-	} else if value > max {
-		return max
-	}
-	return value
+func Clamp[T constraints.Ordered](val, minval, maxval T) T {
+	return min(max(val, minval), maxval)
+}
+
+func Abs[T constraints.Signed](value T) T {
+	return max(value, -value)
 }
 
 func ParseNote(annotatedNote string) Note {
@@ -288,6 +294,13 @@ func LoadProject(path string, p *Project) error {
 		}
 		p.Tracks[t].Instrument = &p.Instruments[p.Tracks[t].InstrumentId]
 	}
+	for n := range p.Instruments {
+		i := &p.Instruments[n]
+		if i.SampleSourceType == SampleSourceTypeWavefile && !i.SamplesLoaded {
+			i.LoadSamples()
+			Logf("Loaded samples %v. Len samples %d. Len samples[0] %d.\n", i.SampleSource, len(i.Samples), len(i.Samples[0]))
+		}
+	}
 	return nil
 }
 
@@ -311,25 +324,25 @@ var Notation = [SemitonesInOctave]string{"C ", "C#", "D ", "D#", "E ", "F ", "F#
 var throttledLogsNum = 0
 var previousLog string = ""
 
-func Logf(format string, args ...any) {
-	result := fmt.Sprintf(format, args...)
-	if result == previousLog {
-		throttledLogsNum++
-		return
-	}
-
-	if throttledLogsNum > 0 {
-		fmt.Printf("[%dx]\n%s\n", throttledLogsNum, previousLog)
-		throttledLogsNum = 0
-	}
-	fmt.Print(result)
-	previousLog = result
-}
-
 // Static compile-time assertion:
 // If our RGBA function stops returning a valid raylib.Color, this won't compile.
 var _ rl.Color = RGBA(0, 0, 0, 0)
 
 func RGBA(r, g, b, a uint8) rl.Color {
 	return rl.Color{R: r, G: g, B: b, A: a}
+}
+
+var NoteColor = [12]rl.Color{
+	RGBA(255, 64+32, 128+32, 255),
+	RGBA(255, 64+64, 128+64, 255),
+	RGBA(255, 64+96, 128+96, 255),
+	RGBA(64+32, 255, 128, 255),
+	RGBA(64+64, 255, 128, 255),
+	RGBA(64+96, 255, 128, 255),
+	RGBA(64+32, 128+32, 255, 255),
+	RGBA(64+64, 128+64, 255, 255),
+	RGBA(64+96, 128+96, 255, 255),
+	RGBA(128+32, 255, 64+32, 255),
+	RGBA(128+64, 255, 64+64, 255),
+	RGBA(128+96, 255, 64+96, 255),
 }

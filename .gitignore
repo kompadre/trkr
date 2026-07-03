@@ -2,9 +2,15 @@
 /trkr
 /trkr.arm64
 /trkr-arm64
+/trkr-*
 /go.mod
 /go.sum
 /autosave.json
 /.go-*
 /.idea
 /.cross-compiler-arm64-built
+/*.json
+/autosave.*
+/*.prof
+/experiment/
+/assets/

@@ -65,7 +65,7 @@ func (s *Synth) LoadPatch(path string) error {
 	}
 	start := 0x7c
 	interval := 0xf0 - 0x70
-	length := 0x85 - start
+	length := (0x85 - start) + 1
 	prog := 0
 	for i := start; i < len(syx); i += interval {
 		s.Programs[prog] = string(syx[i : i+length])
@@ -73,6 +73,9 @@ func (s *Synth) LoadPatch(path string) error {
 	}
 	s.WriteMidi(syx)
 	s.PatchPath = path
+	for ch, p := range s.ChannelPrograms {
+		s.ChangeProgram(uint8(ch), p)
+	}
 	return nil
 }
 

@@ -4,7 +4,7 @@ BINARY_AMD64_X11 := trkr-x11
 BINARY_ARM64 := trkr-arm64
 BINARY_WIN64 := trkr.exe
 
-# BUILDFLAGS := -ldflags="-s -w" -gcflags="-m -l"
+# BUILDFLAGS := -ldflags="-s -w" -gcflags="-m"
 
 
 DOCKERBUILT := .cross-compiler-arm64-built
@@ -55,7 +55,7 @@ $(BINARY_ARM64): $(SRCS) $(DOCKERBUILT)
 		-e CGO_CFLAGS="-DGRAPHICS_API_OPENGL_ES2 -DPLATFORM_DESKTOP_SDL" \
 		-e CGO_LDFLAGS="-lm" \
 		$(DOCKERIMAGE) \
-		sh -c "go clean -cache && go build -a -tags 'sdl es2' -o $(BINARY_ARM64) ./cmd"
+		sh -c "go clean -cache && go build -a -tags 'sdl es2 release' -o $(BINARY_ARM64) ./cmd"
 
 $(BINARY_WIN64): $(SRCS)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -o $(BINARY_WIN64) ./cmd

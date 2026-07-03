@@ -1,8 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"log"
+	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"time"
 	. "trkr"
 	ui "trkr/internal/ui"
@@ -83,7 +87,17 @@ func main() {
 	rl.UnloadImage(image)
 
 	skipInputTriggers := 0
-	ui.Font = rl.LoadFont("./assets/fonts/JetBrainsMono-SemiBold.ttf")
+
+	filePath := "./assets/fonts/JetBrainsMono-SemiBold.ttf"
+
+	// 1. Load the font directly using Raylib's built-in file loader.
+	// This allocates the glyph and rectangle arrays safely inside C memory,
+	// completely avoiding Go pointer pinning restrictions.
+	ui.Font = rl.LoadFontEx(filePath, view.FontSize, nil, 95)
+
+	// 2. Set the texture filter so your pixel-perfect text stays crisp on the H700 screen
+	rl.SetTextureFilter(ui.Font.Texture, rl.FilterPoint)
+
 	laid := ui.Laid{}
 	laid.SetBreakpoint(rl.GetScreenWidth())
 	drawPayload := ui.ElementDrawPayload{Laid: &laid}
@@ -96,6 +110,33 @@ func main() {
 	updateCtx := ev.EventContext{EventData: nil, EventPayload: &drawPayload}
 	postUpdateCtx := ev.EventContext{}
 	audioUpdateCtx := ev.EventContext{}
+
+	var profile bool
+	flag.BoolVar(&profile, "profile", false, "Start profiling")
+	flag.Parse()
+
+	if profile {
+		go func() {
+			exePath, _ := os.Executable()
+			profPath := filepath.Join(filepath.Dir(exePath), "cpu.prof")
+
+			f, err := os.Create(profPath)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+
+			log.Println("Profiling started...")
+			pprof.StartCPUProfile(f)
+
+			// Let it run for 30 seconds while you play the game
+			time.Sleep(30 * time.Second)
+
+			pprof.StopCPUProfile()
+			log.Println("Profiling stopped. Safe to copy cpu.prof!")
+		}()
+	}
+
 	for !rl.WindowShouldClose() {
 		if !rl.IsWindowFocused() {
 			rl.ClearWindowState(rl.FlagVsyncHint)
@@ -134,7 +175,7 @@ func main() {
 				redrawFrames += 10
 			}
 			laid.PopContext()
-
+			ui.FlushText()
 			if redrawFrames > 0 {
 				redrawFrames--
 			}
@@ -154,11 +195,14 @@ func demoProject(currentProject *Project) {
 	currentProject.Filename = "autosave.json"
 	currentPhrase := NewPhrase(currentProject)
 	instrument := NewInstrument(currentProject)
-	instrument.SampleSourceType = SampleSourceTypeFm
+	instrument.SampleSourceType = SampleSourceTypeWavefile
+	instrument.SampleSource = [3]string{"./assets/music/kick.wav", "./assets/music/snare.wav", "./assets/music/hat.wav"}
+	instrument.LoadSamples()
 	currentTrack := Track{}
 	currentTrack.InstrumentId = instrument.Id
 	currentTrack.Instrument = instrument
-	currentTrack.Instrument.Program = 3
+	currentTrack.Instrument.Program = 0
+
 	currentTrack.Phrases = []*Phrase{currentPhrase}
 	currentTrack.PhraseIds = []int32{currentPhrase.ID}
 	currentTrack.Volume = 1.0

@@ -49,8 +49,9 @@ type Voice struct {
 	Active       bool
 	Envelope
 	Note
-	Volume   float32
-	Waveform // Embedded type. Public field named 'Waveform'
+	Volume float64
+	Waveform
+	Samples []float32
 
 	_frequency float64 `json:"-"`
 	_phase     float64 `json:"-"`
@@ -66,6 +67,7 @@ type VoiceCommand struct {
 	SampleSourceType
 	SustainTicks uint32
 	Velocity     uint8
+	Volume       float64
 }
 
 var voicePool []*Voice
@@ -79,6 +81,7 @@ var freeVoices chan *Voice
 var CommandQueue = make(chan VoiceCommand, 64)
 var saturator func([]float32, float32)
 var filter func([]float32)
+var masterRunningDry = 0
 
 func InitVoiceMasterStream() {
 	masterStream = rl.LoadAudioStream(VoiceSampleRate, 32, 1)
@@ -186,7 +189,9 @@ func (v *Voice) IsPlaying() bool {
 }
 
 func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float32 {
-	volScale := v.Volume * headroomScale
+	var volScale float32 = float32(v.Volume) // * headroomScale
+	if v.Instrument.SampleSourceType == SampleSourceTypeFmPickup {
+	}
 	var maxAbs float32
 	var msfaBuffer []int16
 	var waveLenInt int
@@ -199,16 +204,18 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 		msfaBuffer = make([]int16, len(writeBuffer))
 		SynthInstance.GetSamples(msfaBuffer)
 	} else {
-		waveLenInt = len(v.Instrument.Samples)
+		waveLenInt = len(v.Samples)
 		waveLen = float64(waveLenInt)
 	}
 
+	var envVolume float32 = 1.0
 	for i := range writeBuffer {
-		envVolume := v.TickEnvelope()
-		if v.Envelope.State == EnvIdle {
-			break
+		if v.TrackId != 0xff {
+			envVolume = v.TickEnvelope()
+			if v.Envelope.State == EnvIdle {
+				break
+			}
 		}
-		combinedVolume := volScale * envVolume
 		var sample float32 = 1.0
 		switch v.Instrument.SampleSourceType {
 		case SampleSourceTypeSquare:
@@ -221,6 +228,7 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			sample = float32(math.Cos(v._phase * 2.0 * math.Pi))
 		case SampleSourceTypeFmPickup:
 			sample = float32(msfaBuffer[i]) / 32768.0
+			//Logf("Picked up sample: %v.\n", sample)
 		case SampleSourceTypeWavefile:
 			if !v.Instrument.SamplesLoaded {
 				Logf("Samples not loaded, returning 0.0 for instrument %d!\n", v.Instrument.Id)
@@ -229,17 +237,15 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			idxA := int(v._phase)
 			if v.Instrument.LoopEnd == 0 {
 				if waveLenInt >= idxA {
-					sample = v.Instrument.Samples[idxA]
+					sample = v.Samples[idxA]
 				} else {
 					sample = 0.0
 					v.Envelope.State = EnvIdle
 				}
 			} else {
-				// 1. Core Linear Interpolation (Single Step Lookup)
 				frac := float32(v._phase - float64(idxA))
 				idxB := idxA + 1
 
-				// Protect look-ahead index bounds
 				if float64(idxB) >= v.Instrument.LoopEnd {
 					idxB = int(v.Instrument.LoopStart) + (idxB - int(v.Instrument.LoopEnd))
 				} else if idxB >= int(waveLen) {
@@ -247,30 +253,26 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 				}
 
 				if idxA < int(waveLen) && idxA >= 0 {
-					sample = v.Instrument.Samples[idxA] + frac*(v.Instrument.Samples[idxB]-v.Instrument.Samples[idxA])
+					sample = v.Samples[idxA] + frac*(v.Samples[idxB]-v.Samples[idxA])
 				} else {
 					sample = 0.0
 				}
 			}
 		}
 
-		finalVolume := combinedVolume
-		maxAbs = max(maxAbs, sample*finalVolume, -(sample * finalVolume))
-		writeBuffer[i] += sample * finalVolume
+		if v.Instrument.SampleSourceType != SampleSourceTypeFm && v.Instrument.SampleSourceType != SampleSourceTypeWavefile {
+			volScale *= envVolume
+		}
 
-		// UNIFIED ACCUMULATOR ADVANCE (Happens exactly once per loop iteration)
+		maxAbs = max(maxAbs, sample*volScale, -(sample * volScale))
+
+		writeBuffer[i] += (sample * volScale)
 		v._phase += v._phaseStep
 
-		// UNIFIED WRAP BEHAVIOR
-
-		// Replace your wrapping logic with a strict modulo/truncation fit
 		if v.Instrument.SampleSourceType == SampleSourceTypeWavefile {
 			if v.Instrument.LoopEnd != 0.0 {
 				if v._phase >= v.Instrument.LoopEnd {
-					// Calculate exact distance past the edge
 					overshoot := v._phase - v.Instrument.LoopEnd
-
-					// Clean snap: Force it back into the safe loop window
 					v._phase = v.Instrument.LoopStart + math.Mod(overshoot, v.Instrument.LoopEnd-v.Instrument.LoopStart)
 				}
 			} else {
@@ -292,7 +294,12 @@ CommandLoop:
 		select {
 		case cmd := <-CommandQueue:
 			if cmd.SampleSourceType == SampleSourceTypeFm {
-				PlaySoundFm(cmd.ColumnId, cmd.TrackId, cmd.Note, cmd.Velocity)
+				if cmd.Note == NoteOff {
+					StopSoundFm(cmd.ColumnId, cmd.TrackId)
+				} else {
+					PlaySoundFm(cmd.ColumnId, cmd.TrackId, cmd.Note, cmd.Velocity)
+				}
+
 				break CommandLoop
 			}
 
@@ -314,13 +321,27 @@ CommandLoop:
 					}
 				}
 			default:
+				ins := &CurrentProject.Instruments[cmd.InstrumentId]
+				if ins.SampleSourceType == SampleSourceTypeWavefile && !ins.SamplesLoaded {
+					ins.LoadSamples()
+					Logf("Filenames: %v, len(Samples[0]): %d.\n", ins.SampleSource, len(ins.Samples[0]))
+					continue
+				}
 				targetVoice := FindFreeVoice(cmd.ColumnId, cmd.TrackId, cmd.InstrumentId)
-				targetVoice.InstrumentId = cmd.InstrumentId
-				targetVoice.Instrument = &CurrentProject.Instruments[cmd.InstrumentId]
+				targetVoice.InstrumentId = ins.Id
+				targetVoice.Instrument = ins
+				if ins.SampleSourceType == SampleSourceTypeWavefile {
+					idx := int(cmd.Note) % (len(targetVoice.Instrument.Samples))
+					if !(len(targetVoice.Instrument.Samples[idx]) > 0) {
+						continue
+					}
+					targetVoice.Samples = targetVoice.Instrument.Samples[idx][:]
+				}
 				targetVoice.TrackId = cmd.TrackId
 				targetVoice.ColumnId = cmd.ColumnId
 				targetVoice.Note = cmd.Note
 				targetVoice.Envelope.SustainTicks = cmd.SustainTicks
+				targetVoice.Volume = cmd.Volume
 				targetVoice.Play()
 			}
 		default:
@@ -345,12 +366,18 @@ func MasterUpdate(ctx ev.EventContext) bool {
 			masterBuffer[i] = 0.0
 		}
 
+		if masterRunningDry > 0 {
+			masterRunningDry--
+			rl.UpdateAudioStream(masterStream, masterBuffer[:])
+			continue
+		}
+
 		if currentHeadroomCount < 1 {
 			rl.UpdateAudioStream(masterStream, masterBuffer[:])
 			continue
 		}
 
-		headroomScale := 0.9 / float32(currentHeadroomCount)
+		headroomScale := 0.995 / float32(currentHeadroomCount)
 
 		var maxAbs float32
 		for _, v := range voicePool {
@@ -454,7 +481,6 @@ func NewLowPassFilter() func(masterBuffer []float32) {
 			if direction < 0 && cut <= 0.15 {
 				direction = 1.0 // Turn around and go back UP
 			} else if direction > 0 && cut >= 0.6 {
-				Logf("Going back down!\n")
 				direction = -1.0 // Turn around and go back DOWN
 			}
 		}

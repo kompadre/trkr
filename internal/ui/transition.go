@@ -19,8 +19,8 @@ type Transition struct {
 func NewTransition(parent *Element, dir rl.Vector2) *Element {
 	t := &Transition{Ttl: 3}
 
-	image := rl.LoadImage("./assets/images/bg.png")
-	bg := rl.LoadTextureFromImage(image)
+	// image := rl.LoadImage("./assets/images/bg.png")
+	//	bg := rl.LoadTextureFromImage(image)
 	t.Render = rl.LoadRenderTexture(int32(GetOptions().ScreenWidth), int32(GetOptions().ScreenHeight))
 	inverted := rl.LoadRenderTexture(int32(GetOptions().ScreenWidth), int32(GetOptions().ScreenHeight))
 	rl.SetTextureFilter(t.Render.Texture, rl.TextureFilterLinear)
@@ -29,11 +29,12 @@ func NewTransition(parent *Element, dir rl.Vector2) *Element {
 	t.Tint = rl.NewColor(255, 255, 255, 255)
 	t.Scale = 1.0
 	fmt.Printf("Dir: %v\n", t.Dir)
-	rl.UnloadImage(image)
+	// rl.UnloadImage(image)
 
 	rl.BeginTextureMode(inverted)
 	rl.ClearBackground(WindowBg5)
-	rl.DrawTexture(bg, 0, 0, rl.White)
+	rl.DrawRectangleLines(0, 0, int32(GetOptions().ScreenWidth), int32(GetOptions().ScreenHeight), rl.White)
+	// rl.DrawTexture(bg, 0, 0, rl.White)
 	laid := Laid{}
 	laid.SetBreakpoint(rl.GetScreenWidth())
 	ev.Trigger(ev.EventKindUpdate, ev.EventContext{EventPayload: &ElementDrawPayload{Laid: &laid}})
@@ -63,29 +64,32 @@ func (t *Transition) Draw(ctx ev.EventContext, hasFocus bool) bool {
 	t.Ttl--
 	if t.Ttl <= 0 {
 		if t.Dir.X == 0 && t.Dir.Y == 0 {
-			t.Scale += -0.1
-			t.Pos.X = float32(GetOptions().ScreenWidth)/2.0 - (t.Scale*float32(GetOptions().ScreenWidth))/2.0
-			t.Pos.Y = float32(GetOptions().ScreenHeight)/2.0 - (t.Scale*float32(GetOptions().ScreenHeight))/2.0
+			t.Scale += -0.01
+			t.Pos.X = float32(GetOptions().ScreenWidth) * (1 - t.Scale) / 2
+			t.Pos.Y = float32(GetOptions().ScreenHeight) * (1 - t.Scale) / 2
 		} else if t.Dir.X > 0 && t.Dir.Y > 0 {
-			t.Scale += 0.1
-			t.Pos.X = float32(GetOptions().ScreenWidth)/2.0 - (t.Scale*float32(GetOptions().ScreenWidth))/2.0
-			t.Pos.Y = float32(GetOptions().ScreenHeight)/2.0 - (t.Scale*float32(GetOptions().ScreenHeight))/2.0
+			t.Scale += 0.01
+			t.Pos.X = float32(GetOptions().ScreenWidth) * (1 - t.Scale) / 2
+			t.Pos.Y = float32(GetOptions().ScreenHeight) * (1 - t.Scale) / 2
 		} else {
 			t.Pos.X += t.Dir.X
 			t.Pos.Y += t.Dir.Y
 		}
-		if t.Tint.A > 30 {
-			t.Tint.A -= 30
+
+		if t.Tint.A > 10 {
+			t.Tint.A -= 10
 		} else {
 			t.Tint.A = 0
 		}
-		fmt.Printf("Tint: %v.\n", t.Tint)
-		w, h := float32(GetOptions().ScreenWidth), float32(GetOptions().ScreenHeight)
-		if t.Tint.A <= 0 || t.Pos.X > w || t.Pos.X < -w || t.Pos.Y > h || t.Pos.Y < -h {
-			fmt.Printf("Removing transition...")
+
+		if t.Ttl < -50 {
 			el := ctx.EventPayload.(*ElementDrawPayload).Element
-			el.Remove()
-			rl.UnloadRenderTexture(t.Render)
+			if el.Visible {
+				el.Visible = false
+				fmt.Printf("Removing transition...")
+				el.Remove()
+				rl.UnloadRenderTexture(t.Render)
+			}
 		}
 	}
 	return true

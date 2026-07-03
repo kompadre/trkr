@@ -147,8 +147,8 @@ func (l *Laid) Col(xs, sm, md, lg int) (rl.Rectangle, bool) {
 	allocatedWidth := colUnitWidth * float32(span)
 
 	// Setup a baseline row height if one isn't active
-	if ctx.RowHeight < 20 && ctx.RowHeight != 0 {
-		ctx.RowHeight = 20
+	if ctx.RowHeight < 16 && ctx.RowHeight != 0 {
+		ctx.RowHeight = 16
 	}
 
 	// Sub-columns take the active row height, NOT the entire screen!
@@ -164,8 +164,8 @@ func (l *Laid) Col(xs, sm, md, lg int) (rl.Rectangle, bool) {
 	ctx.CursorX += allocatedWidth
 	ctx.CurrentCol += span
 
-	if ctx.RowHeight < 20 {
-		ctx.RowHeight = 20
+	if ctx.RowHeight < 16 {
+		ctx.RowHeight = 16
 	}
 	l.ColBounds = bounds
 	return bounds, true
@@ -236,6 +236,14 @@ func (l *Laid) BreakRow() {
 func (l *Laid) Text(text string, size int32, color rl.Color) {
 	b := l.Bounds()
 	DrawText(text, int32(b.X), int32(b.Y), size, color)
+	ctx := &l.ctxStack[len(l.ctxStack)-1]
+	ctx.RowHeight = max(float32(size), ctx.RowHeight)
+}
+
+func (l *Laid) Pixel(x, y int32, color rl.Color) {
+	b := l.Bounds()
+	Logf("Bounds: %v.\n", b)
+	rl.DrawPixel(int32(b.X)+x, int32(b.Y)+y, color)
 }
 
 func (l *Laid) TextBlock(text string, size int32, color rl.Color) {

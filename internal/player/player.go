@@ -1,8 +1,6 @@
 package player
 
 import (
-
-	// "golang.org/x/exp/rand"
 	"fmt"
 	"time"
 	. "trkr"
@@ -14,6 +12,7 @@ import (
 var StopChannel chan bool
 var IsPlaying bool
 var uiElem *ui.Element
+var EffectiveBpm float64
 
 func CreatePlayer(parent *ui.Element) {
 	uiElem = ui.NewElement(0, 0, 0, 0, nil, parent)
@@ -27,7 +26,8 @@ func GetElem() *ui.Element {
 func Stop() {
 	fmt.Printf("Player is stopping...\n")
 	if IsPlaying {
-		audio.PlaySoundMulti(0, 0, NoteCut, 0, 0, 0.0)
+		audio.PlaySoundMulti(0, 0, NoteCut, 0, 0, 0.0, 0.0)
+		audio.StopFm()
 		StopChannel <- true
 		ev.ClearCallbacks(ev.EventKindTick)
 	}
@@ -53,12 +53,19 @@ func Play() {
 			track := &CurrentProject.Tracks[trackId]
 
 			currentTick := *(ctx.EventPayload.(*int64))
+			phrase := track.Current()
 
-			if track.Skips > 0 && currentTick%int64(track.Skips) != 0 {
+			if currentTick < 0 {
+				// Dry run
+				for range phrase.Current().Notes {
+				}
 				continue
 			}
 
-			phrase := track.Current()
+			if track.Skips > 0 && currentTick%int64(track.Skips) > 0 {
+				continue
+			}
+
 			var velocity uint8 = 100
 			if phrase.CurrentStep%4 == 0 {
 				velocity = 127
@@ -81,7 +88,7 @@ func Play() {
 					} else {
 						sampleSource = SampleSourceTypeFm
 					}
-					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, velocity)
+					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, velocity, track.Volume)
 				}
 			}
 
@@ -107,32 +114,30 @@ func Play() {
 	var tickerPause time.Duration = time.Minute / time.Duration((BeatsPerMinute)*4.0)
 	IsPlaying = true
 
-	anchorTime := time.Now()
 	var tickCount int64 = 0
 	tickContext := ev.EventContext{EventPayload: &tickCount}
-	for {
-		// The playback engine dictates the current speed/subdivision dynamically
-		ticksPerPatternRow := 4 // engine.GetTicksPerRow()
-		isRowChange := (tickCount%int64(ticksPerPatternRow) == 0)
 
-		if isRowChange {
-			// SACRED STEP: Row alignment (e.g., Note On, Instrument Swap)
-			// Precise alignment using our "gravel nap + spin"
-			targetTime := anchorTime.Add(time.Duration(tickCount) * tickerPause)
-			coarseSleep := time.Until(targetTime) - (2 * time.Millisecond)
-			if coarseSleep > 0 {
-				time.Sleep(coarseSleep)
-			}
-			for time.Now().Before(targetTime) {
-				time.Sleep(0)
-			}
-		} else {
-			// FLEXIBLE STEP: Inside the row (e.g., Arpeggio tick, Volume Slide)
-			// Loose, low-overhead sleep that absorbs the slack
-			time.Sleep(tickerPause)
-		}
-		// Trigger the tick and let the engine figure out what to do with it
+	var (
+		tickStart   time.Time
+		targetSleep time.Duration
+		sleepStart  time.Time
+		sleepDrift  time.Duration
+	)
+
+	tickStart = time.Now()
+	firstStart := tickStart
+	targetSleep = tickerPause
+	for {
 		ev.Trigger(ev.EventKindTick, tickContext)
+		targetSleep -= time.Since(tickStart)
+		if targetSleep > 0 {
+			sleepStart = time.Now()
+			time.Sleep(targetSleep)
+			sleepDrift = targetSleep - time.Since(sleepStart)
+		} else {
+			Logf("Beat being skipped.\n")
+			sleepDrift = 0
+		}
 
 		select {
 		case <-StopChannel:
@@ -142,5 +147,8 @@ func Play() {
 		}
 
 		tickCount++
+		targetSleep = (tickerPause - sleepDrift)
+		tickStart = tickStart.Add(tickerPause)
+		EffectiveBpm = float64(tickCount) / (time.Since(firstStart).Minutes() * 4)
 	}
 }

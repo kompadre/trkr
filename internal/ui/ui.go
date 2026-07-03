@@ -270,8 +270,8 @@ var options = Options{
 	ColorHighlight:  TrackerLine,
 	RowHeight:       20,
 	VerticalPadding: 10,
-	ScreenWidth:     Clamp(480, OptionsScreenWidth, 1024),
-	ScreenHeight:    Clamp(320, OptionsScreenHeight, 768),
+	ScreenWidth:     Clamp(OptionsScreenWidth, 480, 1920),
+	ScreenHeight:    Clamp(OptionsScreenHeight, 320, 1280),
 }
 
 var (
@@ -286,13 +286,20 @@ var (
 	WindowFg1   = RGBA(30, 30, 30, 255)
 	WindowFg2   = RGBA(220, 230, 210, 255)
 	WindowFg3   = RGBA(250, 250, 250, 255)
-	TrackerLine = RGBA(250, 190, 190, 100)
+	TrackerLine = RGBA(128, 128, 170, 60)
 
 	Font rl.Font
 )
 
+var textBatcher = TextBatcher{}
+
 func DrawText(text string, left int32, top int32, size int32, color rl.Color) {
-	rl.DrawTextEx(Font, text, rl.NewVector2(float32(left), float32(top)), float32(size), 1, color)
+	// rl.DrawTextEx(Font, text, rl.NewVector2(float32(left), float32(top)), float32(size), 1, color)
+	textBatcher.Add(text, float32(left), float32(top), float32(size), color)
+}
+
+func FlushText() {
+	textBatcher.Flush(Font)
 }
 
 func GetSpareId() uint16 {
