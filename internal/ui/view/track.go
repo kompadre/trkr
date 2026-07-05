@@ -44,36 +44,45 @@ func GetTrackElement() *ui.Element {
 	return uiElem
 }
 
-func CreateTrack(rootElement *ui.Element) {
+func CurrentTrack() *Track {
+	return &CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
+}
+func CurrentPhrase() *Phrase {
+	currentTrack := CurrentTrack()
+	return currentTrack.Phrases[ui.SectionId][ui.PhraseId]
+}
 
+func CreateTrack(rootElement *ui.Element) {
 	core := ui.NewElementCoreInstance(trackShow, trackHide, handleInputTrack, drawTrack)
 	uiElem = ui.NewElement(10, 10, int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), core, rootElement)
 	ui.TrackDialog = uiElem
 	leftPaneKnobs = make(map[uint8]func(delta int))
-	// Skips
 
+	leftPaneKnobs[0] = func(delta int) {
+		ui.TrackId = Clamp(ui.TrackId+delta, 0, len(CurrentProject.Tracks)-1)
+	}
 	leftPaneKnobs[1] = func(delta int) {
-		currentTrack := &CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
+		currentTrack := CurrentTrack()
 		currentTrack.Volume = Clamp(currentTrack.Volume+(float64(delta)*0.1), 0.0, 1.0)
 		msfa.ChangeVolume(currentTrack.Id, int32(Clamp(256*currentTrack.Volume, 0, 256)))
 	}
 	leftPaneKnobs[2] = func(delta int) {
-		currentTrack := &CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
+		currentTrack := CurrentTrack()
 		currentTrack.Skips = Clamp(uint8(int(currentTrack.Skips)+delta), 0, 16)
 	}
 	leftPaneKnobs[4] = func(delta int) {
-		currentTrack := &CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
-		currentPhrase := currentTrack.Phrases[ui.PhraseId]
+		currentPhrase := CurrentPhrase()
 		currentPhrase.Repeats = Clamp(uint8(int(currentPhrase.Repeats)+delta), 0, 16)
 		currentPhrase.CurrentRepeat = 0
 	}
 	leftPaneKnobs[3] = func(delta int) {
-		currentTrack := &CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
-		currentPhrase := currentTrack.Phrases[ui.PhraseId]
+		currentTrack := CurrentProject.Tracks[ui.TrackId]
+		currentPhrase := currentTrack.Phrases[ui.SectionId][ui.PhraseId]
 		newId := Clamp(currentPhrase.ID+int32(delta), 0, int32(len(CurrentProject.Phrases)-1))
 		if newId != currentPhrase.ID {
-			currentTrack.PhraseIds[ui.PhraseId] = newId
-			currentTrack.Phrases[ui.PhraseId] = &CurrentProject.Phrases[newId]
+			Logf("Setting new phraseId %d for %d slot.\n", newId, ui.PhraseId)
+			currentTrack.PhraseIds[ui.SectionId][ui.PhraseId] = newId
+			currentTrack.Phrases[ui.SectionId][ui.PhraseId] = &CurrentProject.Phrases[newId]
 		}
 	}
 
@@ -129,8 +138,8 @@ func drawTrack(ctx events.EventContext, hasFocus bool) bool {
 	if !uiElem.Visible || len(CurrentProject.Tracks) < 1 || ui.TrackId > len(CurrentProject.Tracks)-1 {
 		return false
 	}
-	currentTrack := CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
-	currentPhrase := currentTrack.Phrases[Clamp(ui.PhraseId, 0, len(currentTrack.Phrases)-1)]
+	currentTrack := CurrentTrack() // CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
+	currentPhrase := CurrentPhrase()
 
 	firstVerticalItem := max(0, currentRow-RowsInScreen)
 	laid := ctx.EventPayload.(*ui.ElementDrawPayload).Laid
@@ -217,9 +226,8 @@ func drawTrack(ctx events.EventContext, hasFocus bool) bool {
 		RowHeight+2, ui.GetOptions().ColorHighlight)
 
 	rl.DrawText(fmt.Sprintf("TRK: %02d/%02d", ui.TrackId, len(CurrentProject.Tracks)-1), 10, bottomOffset, 10, rl.Maroon)
-	rl.DrawText(fmt.Sprintf("PHR: %02d/%02d", ui.PhraseId, len(currentTrack.Phrases)-1), 80, bottomOffset, 10, rl.Maroon)
-	rl.DrawText(fmt.Sprintf("STP: %02d", currentRow), 150, bottomOffset, 10, rl.Maroon)
-	rl.DrawText(fmt.Sprintf("STP: %02d", CurrentProject.Current().Current().CurrentStep), 200, bottomOffset, 10, rl.Maroon)
+	rl.DrawText(fmt.Sprintf("PHR: %02d/%02d", ui.PhraseId, len(currentTrack.Phrases[currentTrack.CurrentSection])-1), 80, bottomOffset, 10, rl.Maroon)
+	rl.DrawText(fmt.Sprintf("ROW: %02d", currentTrack.Current().CurrentStep), 200, bottomOffset, 10, rl.Maroon)
 
 	return false
 }
@@ -232,32 +240,26 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 	}
 
 	result := false
-	currentTrack := &CurrentProject.Tracks[ui.TrackId]
+	currentTrack := CurrentTrack() //&CurrentProject.Tracks[ui.TrackId]
 
 	if input.Down(ev.InputKindDir) && input.Down(ev.InputKindA) && input.Down(ev.InputKindR) {
 		switch true {
 		case input.Down(ev.InputKindDown):
 			fmt.Printf("Adding a new phrase!\n")
-			if input.Down(ev.InputKindR) {
-				clone := CurrentProject.Tracks[ui.TrackId].Phrases[ui.PhraseId].Clone()
-				currentTrack.Phrases = append(currentTrack.Phrases, clone)
-				currentTrack.PhraseIds = append(currentTrack.PhraseIds, clone.ID)
-			} else {
-				newPhrase := NewPhrase(CurrentProject)
-				currentTrack.Phrases = append(currentTrack.Phrases, newPhrase)
-				currentTrack.PhraseIds = append(currentTrack.PhraseIds, newPhrase.ID)
-			}
-			ui.PhraseId = len(currentTrack.Phrases) - 1
+			clone := currentTrack.Phrases[ui.SectionId][ui.PhraseId].Clone()
+			currentTrack.Phrases[ui.SectionId] = append(currentTrack.Phrases[ui.SectionId], clone)
+			currentTrack.PhraseIds[ui.SectionId] = append(currentTrack.PhraseIds[ui.SectionId], clone.ID)
+			ui.PhraseId = len(currentTrack.Phrases[ui.SectionId]) - 1
 
 		case input.Down(ev.InputKindUp):
 			fmt.Printf("Removing a phrase!\n")
-			currentTrack.Phrases = currentTrack.Phrases[:len(currentTrack.Phrases)-1]
-			currentTrack.PhraseIds = currentTrack.PhraseIds[:len(currentTrack.PhraseIds)-1]
+			currentTrack.Phrases[ui.SectionId] = currentTrack.Phrases[ui.SectionId][:len(currentTrack.Phrases[ui.SectionId])-1]
+			currentTrack.PhraseIds[ui.SectionId] = currentTrack.PhraseIds[ui.SectionId][:len(currentTrack.PhraseIds[ui.SectionId])-1]
 			ResetHead()
 			if ui.PhraseId == 0 {
 				newPhrase := NewPhrase(CurrentProject)
-				currentTrack.Phrases = append(currentTrack.Phrases, newPhrase)
-				currentTrack.PhraseIds = append(currentTrack.PhraseIds, newPhrase.ID)
+				currentTrack.Phrases[ui.SectionId] = append(currentTrack.Phrases[ui.SectionId], newPhrase)
+				currentTrack.PhraseIds[ui.SectionId] = append(currentTrack.PhraseIds[ui.SectionId], newPhrase.ID)
 			} else {
 				ui.PhraseId--
 			}
@@ -279,10 +281,10 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 	}
 
 	if input.Down(ev.InputKindR) && input.Down(ev.InputKindDown) {
-		ui.PhraseId = Clamp(ui.PhraseId+1, 0, len(currentTrack.Phrases)-1)
+		ui.PhraseId = Clamp(ui.PhraseId+1, 0, len(currentTrack.Phrases[ui.SectionId])-1)
 		result = true
 	} else if input.Down(ev.InputKindR) && input.Down(ev.InputKindUp) {
-		ui.PhraseId = Clamp(ui.PhraseId-1, 0, len(currentTrack.Phrases)-1)
+		ui.PhraseId = Clamp(ui.PhraseId-1, 0, len(currentTrack.Phrases[ui.SectionId])-1)
 		result = true
 	} else if input.Down(ev.InputKindR) && input.Down(ev.InputKindDir) {
 		tv := rl.NewVector2(0, 0)
@@ -304,14 +306,14 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 				ui.PhraseId = 0
 			}
 		} else if input.Down(ev.InputKindUp) {
-			newPhraseId := Clamp(ui.PhraseId-1, 0, len(CurrentProject.Tracks[ui.TrackId].Phrases)-1)
+			newPhraseId := Clamp(ui.PhraseId-1, 0, len(CurrentProject.Tracks[ui.TrackId].Phrases[ui.SectionId])-1)
 			if newPhraseId != oldPhraseId {
 				tv.Y = RowHeight
 				_ = ui.NewTransition(el, tv)
 				ui.PhraseId = newPhraseId
 			}
 		} else if input.Down(ev.InputKindDown) {
-			newPhraseId := Clamp(ui.PhraseId+1, 0, len(CurrentProject.Tracks[ui.TrackId].Phrases)-1)
+			newPhraseId := Clamp(ui.PhraseId+1, 0, len(CurrentProject.Tracks[ui.TrackId].Phrases[ui.SectionId])-1)
 			if newPhraseId != oldPhraseId {
 				tv.Y = -RowHeight
 				_ = ui.NewTransition(el, tv)
@@ -323,7 +325,8 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 		result = true
 	} else if input.Down(ev.InputKindA) && input.Down(ev.InputKindDir) {
 		if currentCol > 0 {
-			noteSlot := &currentTrack.Phrases[ui.PhraseId].Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Notes[Clamp(currentCol-1, 0, MaxNotesInStep)]
+			noteSlot := &CurrentPhrase().Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Notes[Clamp(currentCol-1, 0, MaxNotesInStep)]
+			oldNote := *noteSlot
 			if input.Down(ev.InputKindRight) {
 				*noteSlot++
 			} else if input.Down(ev.InputKindLeft) {
@@ -332,6 +335,10 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 				*noteSlot += 12
 			} else {
 				*noteSlot -= 12
+			}
+
+			if *noteSlot == NoteSkip || oldNote == NoteSkip {
+				CurrentPhrase().EffectiveRows = 0
 			}
 			result = true
 		} else {
@@ -369,7 +376,10 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 		}
 		result = true
 	} else if currentCol > 0 && input.Tick(ev.InputKindA) > 30 && input.Tick(ev.InputKindB) > 30 {
-		noteSlot := &currentTrack.Phrases[ui.PhraseId].Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Notes[Clamp(currentCol-1, 0, MaxNotesInStep)]
+		noteSlot := &CurrentPhrase().Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Notes[Clamp(currentCol-1, 0, MaxNotesInStep)]
+		if *noteSlot == NoteSkip {
+			CurrentPhrase().EffectiveRows = 0
+		}
 		*noteSlot = NoteNone
 		input.ClearHoldTimers(ev.InputKindA, ev.InputKindB)
 		result = true

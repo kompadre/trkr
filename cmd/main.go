@@ -193,6 +193,7 @@ func main() {
 func demoProject(currentProject *Project) {
 	Logf("Creating a new demo project.\n")
 	currentProject.Filename = "autosave.json"
+	currentProject.Sections = []Section{{Id: 0, Name: "INTRO"}, {Id: 1, Name: "DEVELOP"}}
 	currentPhrase := NewPhrase(currentProject)
 	instrument := NewInstrument(currentProject)
 	instrument.SampleSourceType = SampleSourceTypeWavefile
@@ -202,11 +203,9 @@ func demoProject(currentProject *Project) {
 	currentTrack.InstrumentId = instrument.Id
 	currentTrack.Instrument = instrument
 	currentTrack.Instrument.Program = 0
-
-	currentTrack.Phrases = []*Phrase{currentPhrase}
-	currentTrack.PhraseIds = []int32{currentPhrase.ID}
+	currentTrack.Phrases[currentTrack.CurrentSection] = []*Phrase{currentPhrase}
+	currentTrack.PhraseIds[currentTrack.CurrentSection] = []int32{currentPhrase.ID}
 	currentTrack.Volume = 1.0
 	currentProject.Tracks = append(currentProject.Tracks, currentTrack)
 	Logf("Created demo. Track[0].Instrument.SampleSourceType is %s.\n", currentProject.Tracks[0].Instrument.SampleSourceType.UiString())
-
 }

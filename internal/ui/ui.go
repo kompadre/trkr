@@ -29,6 +29,7 @@ var ElementTreeMutex sync.Mutex
 var CurrentFrame uint32
 
 var TrackId int
+var SectionId int
 var PhraseId int
 
 type ElementCore interface {

@@ -164,9 +164,6 @@ func (l *Laid) Col(xs, sm, md, lg int) (rl.Rectangle, bool) {
 	ctx.CursorX += allocatedWidth
 	ctx.CurrentCol += span
 
-	if ctx.RowHeight < 16 {
-		ctx.RowHeight = 16
-	}
 	l.ColBounds = bounds
 	return bounds, true
 }
@@ -235,9 +232,9 @@ func (l *Laid) BreakRow() {
 
 func (l *Laid) Text(text string, size int32, color rl.Color) {
 	b := l.Bounds()
-	DrawText(text, int32(b.X), int32(b.Y), size, color)
+	DrawText(text, int32(b.X), int32(b.Y-1), size, color)
 	ctx := &l.ctxStack[len(l.ctxStack)-1]
-	ctx.RowHeight = max(float32(size), ctx.RowHeight)
+	ctx.RowHeight = max(float32(size)+2, ctx.RowHeight)
 }
 
 func (l *Laid) Pixel(x, y int32, color rl.Color) {

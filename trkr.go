@@ -13,7 +13,10 @@ import (
 const (
 	MaxNotesInStep    = 8
 	MaxStepsInPhrase  = 16
+	MaxPhrasesInTrack = 32
 	MaxEffectsInStep  = 4
+	MaxSections       = 8
+	MaxTracks         = 8
 	SemitonesInOctave = 12
 )
 
@@ -43,9 +46,10 @@ type Step struct {
 type Phrase struct {
 	ID            int32
 	CurrentStep   int `json:"-"`
+	Steps         [MaxStepsInPhrase]Step
 	Repeats       uint8
 	CurrentRepeat uint8 `json:"-"`
-	Steps         [MaxStepsInPhrase]Step
+	EffectiveRows uint8 `json:"-"`
 }
 
 func NewPhrase(pr *Project) *Phrase {
@@ -63,7 +67,23 @@ func (p *Phrase) Clone() *Phrase {
 	result := *p
 	result.ID = int32(len(CurrentProject.Phrases))
 	CurrentProject.Phrases = append(CurrentProject.Phrases, result)
+	Logf("New ID: %d.\n", result.ID)
 	return &result
+}
+
+func (p *Phrase) Rows() uint8 {
+	if p.EffectiveRows == 0 {
+		for i := range p.Steps {
+			for _, n := range p.Steps[i].Notes {
+				if n == NoteSkip {
+					p.EffectiveRows = uint8(i + 1)
+					return p.EffectiveRows
+				}
+			}
+		}
+		p.EffectiveRows = uint8(len(p.Steps))
+	}
+	return p.EffectiveRows
 }
 
 type _Sample struct {
@@ -144,9 +164,10 @@ type Track struct {
 	Instrument     *Instrument `json:"-"`
 	InstrumentId   uint8
 	CurrentProgram int
-	CurrentPhrase  int       `json:"-"`
-	Phrases        []*Phrase `json:"-"`
-	PhraseIds      []int32
+	CurrentPhrase  int                    `json:"-"`
+	CurrentSection int                    `json:"-"`
+	Phrases        [MaxSections][]*Phrase `json:"-"`
+	PhraseIds      [MaxSections][]int32
 	Volume         float64
 	SkipsLeft      uint8
 	Skips          uint8
@@ -156,25 +177,34 @@ func NewTrack(p *Project) *Track {
 	result := Track{}
 	result.Id = uint8(len(p.Tracks))
 	result.Volume = 1.0
+	result.CurrentSection = p.CurrentSection
 	newPhrase := NewPhrase(p)
 	newInstrument := NewInstrument(p)
 	newInstrument.SampleSourceType = SampleSourceTypeFm
 	newInstrument.Program = 0
-	result.Phrases = []*Phrase{newPhrase}
-	result.PhraseIds = []int32{newPhrase.ID}
+	result.Phrases[result.CurrentSection] = []*Phrase{newPhrase}
+	result.PhraseIds[result.CurrentSection] = []int32{newPhrase.ID}
 	result.InstrumentId = newInstrument.Id
 	result.Instrument = newInstrument
 	p.Tracks = append(p.Tracks, result)
 	return &p.Tracks[len(p.Tracks)-1]
 }
 
+type Section struct {
+	Id   uint8
+	Name string
+	Bars uint32
+}
+
 type Project struct {
-	CurrentTrack int `json:"-"`
-	Tracks       []Track
-	Filename     string
-	Phrases      []Phrase
-	Instruments  []Instrument
-	FmPatchName  string
+	CurrentSection int
+	CurrentTrack   int `json:"-"`
+	Tracks         []Track
+	Filename       string
+	Phrases        []Phrase
+	Instruments    []Instrument
+	Sections       []Section
+	FmPatchName    string
 }
 
 func (p *Phrase) Current() *Step {
@@ -185,7 +215,7 @@ func (t *Track) Current() *Phrase {
 	if len(t.Phrases) == 0 {
 		return nil
 	}
-	return t.Phrases[t.CurrentPhrase]
+	return t.Phrases[t.CurrentSection][t.CurrentPhrase]
 }
 
 func (t *Track) Cleanup() {
@@ -212,6 +242,7 @@ var CurrentProject *Project
 func ResetHead() {
 	Logf("Resetting head!\n")
 	for trackId := range CurrentProject.Tracks {
+		CurrentProject.Tracks[trackId].CurrentSection = 0
 		CurrentProject.Tracks[trackId].CurrentPhrase = 0
 	}
 	for phraseId := range CurrentProject.Phrases {
@@ -282,15 +313,22 @@ func LoadProject(path string, p *Project) error {
 		return err
 	}
 	for t := range p.Tracks {
-		p.Tracks[t].Phrases = make([]*Phrase, len(p.Tracks[t].PhraseIds))
-		for idx, id := range CurrentProject.Tracks[t].PhraseIds {
-			fmt.Printf("Appending phrase.\n")
-			if id >= int32(len(CurrentProject.Phrases)) {
-				id = 0
-				rl.TraceLog(rl.LogWarning, "Couldn't match phrase id %d, Project.Phrases is smaller\n", id)
-				continue
+		Logf("Allocating %d sections.\n", len(p.Sections))
+		Logf("PhraseIds: %v.\n", p.Tracks[t].PhraseIds)
+		for s := range p.Sections {
+			if p.Tracks[t].PhraseIds[s] == nil {
+				p.Tracks[t].PhraseIds[s] = make([]int32, 0)
 			}
-			p.Tracks[t].Phrases[idx] = &CurrentProject.Phrases[id]
+			p.Tracks[t].Phrases[s] = make([]*Phrase, len(p.Tracks[t].PhraseIds[s]))
+			for idx, id := range CurrentProject.Tracks[t].PhraseIds[s] {
+				fmt.Printf("Appending phrase.\n")
+				if id >= int32(len(CurrentProject.Phrases)) {
+					id = 0
+					Logf("Couldn't match phrase id %d, Project.Phrases is smaller\n", id)
+					continue
+				}
+				p.Tracks[t].Phrases[s][idx] = &CurrentProject.Phrases[id]
+			}
 		}
 		p.Tracks[t].Instrument = &p.Instruments[p.Tracks[t].InstrumentId]
 	}
@@ -301,6 +339,7 @@ func LoadProject(path string, p *Project) error {
 			Logf("Loaded samples %v. Len samples %d. Len samples[0] %d.\n", i.SampleSource, len(i.Samples), len(i.Samples[0]))
 		}
 	}
+	p.Sections = []Section{{Id: 0, Name: "INTRO"}, {Id: 1, Name: "DEV 1"}}
 	return nil
 }
 

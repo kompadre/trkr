@@ -23,9 +23,9 @@ func CreateProjectDialog(parent *ui.Element) *ui.Element {
 	return uiElem
 }
 
-func showProject()                                                        {}
-func hideProject()                                                        {}
-func projectHandleInputs(input events.InputSnapshot, el *ui.Element) bool { return false }
+func showProject()                                                         {}
+func hideProject()                                                         {}
+func projectHandleInputs(input *events.InputSnapshot, el *ui.Element) bool { return false }
 func projectDraw(ctx events.EventContext, hasFocus bool) bool {
 	uiElem.DrawContainer(ctx)
 	return false

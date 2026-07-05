@@ -23,6 +23,42 @@ func GetElem() *ui.Element {
 	return uiElem
 }
 
+type PhraseRuntime struct {
+	CurrentRow     *Step
+	RowCounter     int
+	RepeatsCounter uint8
+}
+
+type TrackRuntime struct {
+	TrackId         uint8
+	PhraseCounter   uint8
+	CurrentPhraseId int32
+	CurrentPhrase   *Phrase
+	Phrase          PhraseRuntime
+}
+
+type SectionRuntime struct {
+	TotalRowsCounter int32
+	Tracks           [MaxTracks]TrackRuntime
+}
+
+type Playhead struct {
+	CurrentSectionId uint8
+	CurrentSection   *Section
+	Section          SectionRuntime
+}
+
+func NewPlayhead() Playhead {
+	var currentSection uint8 = 0
+	p := Playhead{CurrentSectionId: currentSection, CurrentSection: &CurrentProject.Sections[currentSection]}
+	for i, t := range CurrentProject.Tracks {
+		p.Section.Tracks[i].TrackId = t.Id
+		p.Section.Tracks[i].CurrentPhrase = &CurrentProject.Phrases[t.PhraseIds[currentSection][0]]
+		p.Section.Tracks[i].CurrentPhraseId = p.Section.Tracks[i].CurrentPhrase.ID
+	}
+	return p
+}
+
 func Stop() {
 	fmt.Printf("Player is stopping...\n")
 	if IsPlaying {
@@ -46,14 +82,16 @@ func Play() {
 		audio.VoiceFm.Play()
 	}
 	audio.PlayFmPickup()
-
+	playhead := NewPlayhead()
 	ev.RegisterCallback(ev.EventKindTick, func(ctx ev.EventContext) bool {
-		for trackId := range CurrentProject.Tracks {
-
-			track := &CurrentProject.Tracks[trackId]
+		for i := range playhead.Section.Tracks {
+			trackRuntime := &playhead.Section.Tracks[i]
+			phraseRuntime := &trackRuntime.Phrase
+			track := &CurrentProject.Tracks[trackRuntime.TrackId]
+			trackId := trackRuntime.TrackId
 
 			currentTick := *(ctx.EventPayload.(*int64))
-			phrase := track.Current()
+			phrase := &CurrentProject.Phrases[track.PhraseIds[playhead.CurrentSectionId][trackRuntime.PhraseCounter]]
 
 			if currentTick < 0 {
 				// Dry run
@@ -92,21 +130,23 @@ func Play() {
 				}
 			}
 
-			phrase.CurrentStep++
-			if phrase.CurrentStep > len(phrase.Steps)-1 {
-				if phrase.Repeats > 0 && phrase.CurrentRepeat < phrase.Repeats {
-					phrase.CurrentRepeat++
+			phraseRuntime.RowCounter++
+			if phraseRuntime.RowCounter > len(phrase.Steps)-1 {
+				if phrase.Repeats > 0 && phraseRuntime.RepeatsCounter < phrase.Repeats {
+					Logf("RepeatsCounter updated.\n")
+					phraseRuntime.RepeatsCounter++
 				} else {
-					track.CurrentPhrase++
-					if track.CurrentPhrase > len(track.Phrases)-1 {
-						track.CurrentPhrase = 0
+					trackRuntime.PhraseCounter++
+					if trackRuntime.PhraseCounter > uint8(len(track.PhraseIds[playhead.CurrentSectionId])-1) {
+						trackRuntime.PhraseCounter = 0
 					}
-					phrase = track.Current()
-					phrase.CurrentRepeat = 0
+					trackRuntime.Phrase = PhraseRuntime{}
+					trackRuntime.CurrentPhraseId = track.PhraseIds[playhead.CurrentSectionId][trackRuntime.PhraseCounter]
+					phrase = &CurrentProject.Phrases[trackRuntime.CurrentPhraseId]
 				}
-				phrase.CurrentStep = 0
+				phraseRuntime.RowCounter = 0
 			}
-
+			phrase.CurrentStep = phraseRuntime.RowCounter
 		}
 		return true
 	}, uiElem.ID)

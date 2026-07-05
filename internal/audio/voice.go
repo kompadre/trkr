@@ -154,8 +154,9 @@ func (v *Voice) Play() {
 		} else {
 			v._phaseStep = 1.0
 		}
+
+		v._phase = rand.Float64() * 512.0 //512.0 //1024.0
 		//	v._phaseStep = v._frequency / VoiceSampleRate
-		v._phase = 0.0 // rand.Float64()
 	} else {
 		v._frequency = frequenciesTable[v.Note%120] //130.81278265 //frequenciesTable[v.Note]
 		v._phaseStep = v._frequency / VoiceSampleRate
