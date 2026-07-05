@@ -37,6 +37,15 @@ type TrackRuntime struct {
 	Phrase          PhraseRuntime
 }
 
+func (tr TrackRuntime) RepeatsLeft(phraseSlot int) uint8 {
+	phrase := CurrentProject.Tracks[tr.TrackId].Phrases[Head.CurrentSectionId][phraseSlot]
+
+	if uint8(phraseSlot) == tr.PhraseCounter {
+		return min(phrase.Repeats, max(0, phrase.Repeats-tr.Phrase.RepeatsCounter))
+	}
+	return phrase.Repeats
+}
+
 type SectionRuntime struct {
 	TotalRowsCounter int32
 	Tracks           [MaxTracks]TrackRuntime
@@ -48,13 +57,17 @@ type Playhead struct {
 	Section          SectionRuntime
 }
 
-func NewPlayhead() Playhead {
-	var currentSection uint8 = 0
+var Head Playhead
+
+func NewPlayhead(currentSection uint8) Playhead {
+	Logf("NewPlayhead for %d.\n", currentSection)
 	p := Playhead{CurrentSectionId: currentSection, CurrentSection: &CurrentProject.Sections[currentSection]}
 	for i, t := range CurrentProject.Tracks {
-		p.Section.Tracks[i].TrackId = t.Id
-		p.Section.Tracks[i].CurrentPhrase = &CurrentProject.Phrases[t.PhraseIds[currentSection][0]]
-		p.Section.Tracks[i].CurrentPhraseId = p.Section.Tracks[i].CurrentPhrase.ID
+		if len(CurrentProject.Tracks[i].Phrases[currentSection]) > 0 {
+			p.Section.Tracks[i].TrackId = t.Id
+			p.Section.Tracks[i].CurrentPhrase = &CurrentProject.Phrases[t.PhraseIds[currentSection][0]]
+			p.Section.Tracks[i].CurrentPhraseId = p.Section.Tracks[i].CurrentPhrase.ID
+		}
 	}
 	return p
 }
@@ -82,16 +95,16 @@ func Play() {
 		audio.VoiceFm.Play()
 	}
 	audio.PlayFmPickup()
-	playhead := NewPlayhead()
+	Head = NewPlayhead(0)
 	ev.RegisterCallback(ev.EventKindTick, func(ctx ev.EventContext) bool {
-		for i := range playhead.Section.Tracks {
-			trackRuntime := &playhead.Section.Tracks[i]
+		for i := range CurrentProject.Tracks {
+			trackRuntime := &Head.Section.Tracks[i]
 			phraseRuntime := &trackRuntime.Phrase
 			track := &CurrentProject.Tracks[trackRuntime.TrackId]
 			trackId := trackRuntime.TrackId
 
 			currentTick := *(ctx.EventPayload.(*int64))
-			phrase := &CurrentProject.Phrases[track.PhraseIds[playhead.CurrentSectionId][trackRuntime.PhraseCounter]]
+			phrase := &CurrentProject.Phrases[trackRuntime.CurrentPhraseId]
 
 			if currentTick < 0 {
 				// Dry run
@@ -104,19 +117,21 @@ func Play() {
 				continue
 			}
 
-			var velocity uint8 = 100
-			if phrase.CurrentStep%4 == 0 {
-				velocity = 127
-			}
+			// var velocity uint8 = 100
+			// if phrase.CurrentStep%4 == 0 {
+			// 	velocity = 127
+			// }
 			//			if phrase
 
 		NoteLoop:
-			for columnId, note := range phrase.Current().Notes {
+
+			for columnId, note := range phrase.Steps[phraseRuntime.RowCounter].Notes {
 				switch note {
 				case NoteNone:
 					continue
 				case NoteSkip:
-					phrase.CurrentStep = len(phrase.Steps) - 1
+					// phrase.CurrentStep = len(phrase.Steps) - 1
+					phraseRuntime.RowCounter = len(phrase.Steps) - 1
 					break NoteLoop
 				default:
 					instrument := track.Instrument
@@ -126,10 +141,9 @@ func Play() {
 					} else {
 						sampleSource = SampleSourceTypeFm
 					}
-					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, velocity, track.Volume)
+					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume)
 				}
 			}
-
 			phraseRuntime.RowCounter++
 			if phraseRuntime.RowCounter > len(phrase.Steps)-1 {
 				if phrase.Repeats > 0 && phraseRuntime.RepeatsCounter < phrase.Repeats {
@@ -137,17 +151,27 @@ func Play() {
 					phraseRuntime.RepeatsCounter++
 				} else {
 					trackRuntime.PhraseCounter++
-					if trackRuntime.PhraseCounter > uint8(len(track.PhraseIds[playhead.CurrentSectionId])-1) {
+					if trackRuntime.PhraseCounter > uint8(len(track.PhraseIds[Head.CurrentSectionId])-1) {
 						trackRuntime.PhraseCounter = 0
 					}
 					trackRuntime.Phrase = PhraseRuntime{}
-					trackRuntime.CurrentPhraseId = track.PhraseIds[playhead.CurrentSectionId][trackRuntime.PhraseCounter]
+					trackRuntime.CurrentPhraseId = track.PhraseIds[Head.CurrentSectionId][trackRuntime.PhraseCounter]
 					phrase = &CurrentProject.Phrases[trackRuntime.CurrentPhraseId]
 				}
 				phraseRuntime.RowCounter = 0
 			}
 			phrase.CurrentStep = phraseRuntime.RowCounter
 		}
+
+		Head.Section.TotalRowsCounter++
+		if Head.Section.TotalRowsCounter >= int32(CurrentProject.Sections[Head.CurrentSectionId].Rows) {
+			Head.CurrentSectionId++
+			if Head.CurrentSectionId > uint8(len(CurrentProject.Sections)-1) {
+				Head.CurrentSectionId = 0
+			}
+			Head = NewPlayhead(Head.CurrentSectionId)
+		}
+
 		return true
 	}, uiElem.ID)
 

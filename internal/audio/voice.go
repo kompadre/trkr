@@ -155,7 +155,7 @@ func (v *Voice) Play() {
 			v._phaseStep = 1.0
 		}
 
-		v._phase = rand.Float64() * 512.0 //512.0 //1024.0
+		v._phase = 0.0 //512.0 //1024.0
 		//	v._phaseStep = v._frequency / VoiceSampleRate
 	} else {
 		v._frequency = frequenciesTable[v.Note%120] //130.81278265 //frequenciesTable[v.Note]
@@ -237,8 +237,8 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			}
 			idxA := int(v._phase)
 			if v.Instrument.LoopEnd == 0 {
-				if waveLenInt >= idxA {
-					sample = v.Samples[idxA]
+				if waveLenInt > idxA+1024 {
+					sample = v.Samples[idxA+1024]
 				} else {
 					sample = 0.0
 					v.Envelope.State = EnvIdle
@@ -265,9 +265,10 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			volScale *= envVolume
 		}
 
-		maxAbs = max(maxAbs, sample*volScale, -(sample * volScale))
+		sample *= volScale
+		maxAbs = max(maxAbs, sample, -sample)
 
-		writeBuffer[i] += (sample * volScale)
+		writeBuffer[i] += sample
 		v._phase += v._phaseStep
 
 		if v.Instrument.SampleSourceType == SampleSourceTypeWavefile {

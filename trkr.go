@@ -68,7 +68,7 @@ func (p *Phrase) Clone() *Phrase {
 	result.ID = int32(len(CurrentProject.Phrases))
 	CurrentProject.Phrases = append(CurrentProject.Phrases, result)
 	Logf("New ID: %d.\n", result.ID)
-	return &result
+	return &CurrentProject.Phrases[result.ID]
 }
 
 func (p *Phrase) Rows() uint8 {
@@ -193,7 +193,7 @@ func NewTrack(p *Project) *Track {
 type Section struct {
 	Id   uint8
 	Name string
-	Bars uint32
+	Rows uint32
 }
 
 type Project struct {
@@ -339,7 +339,7 @@ func LoadProject(path string, p *Project) error {
 			Logf("Loaded samples %v. Len samples %d. Len samples[0] %d.\n", i.SampleSource, len(i.Samples), len(i.Samples[0]))
 		}
 	}
-	p.Sections = []Section{{Id: 0, Name: "INTRO"}, {Id: 1, Name: "DEV 1"}}
+	p.Sections = []Section{{Id: 0, Name: "INTRO", Rows: 224}, {Id: 1, Name: "DEV 1", Rows: 64}}
 	return nil
 }
 
