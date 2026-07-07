@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 	. "trkr"
+	"trkr/external/msfa"
 	"trkr/internal/audio"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
@@ -30,7 +31,7 @@ type PhraseRuntime struct {
 }
 
 type TrackRuntime struct {
-	TrackId         uint8
+	TrackId         int8
 	PhraseCounter   uint8
 	CurrentPhraseId int32
 	CurrentPhrase   *Phrase
@@ -64,9 +65,11 @@ func NewPlayhead(currentSection uint8) Playhead {
 	p := Playhead{CurrentSectionId: currentSection, CurrentSection: &CurrentProject.Sections[currentSection]}
 	for i, t := range CurrentProject.Tracks {
 		if len(CurrentProject.Tracks[i].Phrases[currentSection]) > 0 {
-			p.Section.Tracks[i].TrackId = t.Id
+			p.Section.Tracks[i].TrackId = int8(t.Id)
 			p.Section.Tracks[i].CurrentPhrase = &CurrentProject.Phrases[t.PhraseIds[currentSection][0]]
 			p.Section.Tracks[i].CurrentPhraseId = p.Section.Tracks[i].CurrentPhrase.ID
+		} else {
+			p.Section.Tracks[i].TrackId = -1
 		}
 	}
 	return p
@@ -98,6 +101,10 @@ func Play() {
 	Head = NewPlayhead(0)
 	ev.RegisterCallback(ev.EventKindTick, func(ctx ev.EventContext) bool {
 		for i := range CurrentProject.Tracks {
+			if len(CurrentProject.Tracks[i].Phrases[Head.CurrentSectionId]) < 1 {
+				continue
+			}
+
 			trackRuntime := &Head.Section.Tracks[i]
 			phraseRuntime := &trackRuntime.Phrase
 			track := &CurrentProject.Tracks[trackRuntime.TrackId]
@@ -142,6 +149,7 @@ func Play() {
 						sampleSource = SampleSourceTypeFm
 					}
 					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume)
+					// Logf("Queued %d %d %v %d %s", columnId, trackId, note, track.InstrumentId, sampleSource.UiString())
 				}
 			}
 			phraseRuntime.RowCounter++
@@ -170,6 +178,15 @@ func Play() {
 				Head.CurrentSectionId = 0
 			}
 			Head = NewPlayhead(Head.CurrentSectionId)
+		}
+
+		// Let's automate parameters! :D
+		if CurrentProject.Tracks[2].Volume > 0 {
+			CurrentProject.Tracks[2].Volume = 0.0
+			msfa.ChangeVolume(2, 0)
+		} else {
+			CurrentProject.Tracks[2].Volume = 1.0
+			msfa.ChangeVolume(2, 256)
 		}
 
 		return true

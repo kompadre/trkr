@@ -191,8 +191,6 @@ func (v *Voice) IsPlaying() bool {
 
 func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float32 {
 	var volScale float32 = float32(v.Volume) // * headroomScale
-	if v.Instrument.SampleSourceType == SampleSourceTypeFmPickup {
-	}
 	var maxAbs float32
 	var msfaBuffer []int16
 	var waveLenInt int
@@ -228,8 +226,7 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 		case SampleSourceTypeCosine:
 			sample = float32(math.Cos(v._phase * 2.0 * math.Pi))
 		case SampleSourceTypeFmPickup:
-			sample = float32(msfaBuffer[i]) / 32768.0
-			//Logf("Picked up sample: %v.\n", sample)
+			sample = float32(msfaBuffer[i]) / 32767.5
 		case SampleSourceTypeWavefile:
 			if !v.Instrument.SamplesLoaded {
 				Logf("Samples not loaded, returning 0.0 for instrument %d!\n", v.Instrument.Id)
@@ -237,8 +234,8 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			}
 			idxA := int(v._phase)
 			if v.Instrument.LoopEnd == 0 {
-				if waveLenInt > idxA+1024 {
-					sample = v.Samples[idxA+1024]
+				if waveLenInt > idxA {
+					sample = v.Samples[idxA]
 				} else {
 					sample = 0.0
 					v.Envelope.State = EnvIdle
@@ -301,8 +298,7 @@ CommandLoop:
 				} else {
 					PlaySoundFm(cmd.ColumnId, cmd.TrackId, cmd.Note, cmd.Velocity)
 				}
-
-				break CommandLoop
+				//break CommandLoop
 			}
 
 			switch cmd.Note {
@@ -359,7 +355,7 @@ func MasterUpdate(ctx ev.EventContext) bool {
 
 		currentHeadroomCount := 0
 		for _, v := range voicePool {
-			if v.IsPlaying() {
+			if v.IsPlaying() && v.Instrument.SampleSourceType != SampleSourceTypeFm {
 				currentHeadroomCount++
 			}
 		}
@@ -368,27 +364,21 @@ func MasterUpdate(ctx ev.EventContext) bool {
 			masterBuffer[i] = 0.0
 		}
 
-		if masterRunningDry > 0 {
-			masterRunningDry--
-			rl.UpdateAudioStream(masterStream, masterBuffer[:])
-			continue
-		}
-
 		if currentHeadroomCount < 1 {
+			Logf("Exiting early because nobody's playing.\n")
 			rl.UpdateAudioStream(masterStream, masterBuffer[:])
 			continue
 		}
 
 		headroomScale := 0.995 / float32(currentHeadroomCount)
-
 		var maxAbs float32
 		for _, v := range voicePool {
-			if v.Envelope.State == EnvIdle {
+			if v.Envelope.State == EnvIdle || v.Instrument.SampleSourceType == SampleSourceTypeFm {
 				continue
 			}
 			maxAbs = max(maxAbs, v.UpdateVoice(masterBuffer[:], headroomScale))
 		}
-		saturator(masterBuffer[:], maxAbs)
+		// saturator(masterBuffer[:], maxAbs)
 		// filter(masterBuffer[:])
 		// for i := 0; i < len(masterBuffer); i += 2 {
 		// 	masterBuffer32x2[i] = masterBuffer[i]

@@ -157,7 +157,7 @@ func drawTrack(ctx events.EventContext, hasFocus bool) bool {
 			}
 			laid.TextBlock(fmt.Sprintf("Phrase: %d", currentPhrase.ID), FontSize, rl.White)
 			laid.Pad(10, 0)
-			laid.TextBlock(fmt.Sprintf("Repeats: %d(%d)", currentPhrase.Repeats, player.Head.Section.Tracks[ui.TrackId].RepeatsLeft(ui.PhraseId)), FontSize, rl.White)
+			laid.TextBlock(fmt.Sprintf("Repeats: %d", currentPhrase.Repeats), FontSize, rl.White)
 			laid.Pad(-10, 0)
 			laid.TextBlock(CurrentProject.Tracks[ui.TrackId].Instrument.SampleSourceType.UiString(), FontSize, rl.White)
 			switch CurrentProject.Tracks[ui.TrackId].Instrument.SampleSourceType {
@@ -281,6 +281,7 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 	}
 
 	if input.Down(ev.InputKindR) && input.Down(ev.InputKindDown) {
+		Logf("PhraseId: %d. len(Phrases): %d.\n", ui.PhraseId, len(currentTrack.PhraseIds[ui.SectionId]))
 		ui.PhraseId = Clamp(ui.PhraseId+1, 0, len(currentTrack.Phrases[ui.SectionId])-1)
 		result = true
 	} else if input.Down(ev.InputKindR) && input.Down(ev.InputKindUp) {

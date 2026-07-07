@@ -101,7 +101,11 @@ func (pv *SongView) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 		showSettings()
 		return true
 	} else if input.Down(ev.InputKindR) && input.Down(ev.InputKindDir) {
-		ui.SectionId = Clamp(ui.SectionId+1, 0, len(CurrentProject.Sections)-1)
+		delta := 1
+		if input.Down(ev.InputKindLeft) {
+			delta = -1
+		}
+		ui.SectionId = Clamp(ui.SectionId+delta, 0, len(CurrentProject.Sections)-1)
 		Logf("ui.SectionId was set to %d.\n", ui.SectionId)
 		return true
 	} else if input.Down(ev.InputKindA) || (input.Down(ev.InputKindB) && input.Down(ev.InputKindUp)) {
