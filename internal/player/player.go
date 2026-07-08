@@ -181,12 +181,12 @@ func Play() {
 		}
 
 		// Let's automate parameters! :D
-		if CurrentProject.Tracks[2].Volume > 0 {
-			CurrentProject.Tracks[2].Volume = 0.0
-			msfa.ChangeVolume(2, 0)
+		if Head.Section.TotalRowsCounter%4 == 0 {
+			CurrentProject.Tracks[4].Volume = 1.0
+			msfa.ChangeVolume(4, 256)
 		} else {
-			CurrentProject.Tracks[2].Volume = 1.0
-			msfa.ChangeVolume(2, 256)
+			CurrentProject.Tracks[4].Volume = 0.25
+			msfa.ChangeVolume(4, 256/4)
 		}
 
 		return true

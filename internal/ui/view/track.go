@@ -246,7 +246,7 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 		switch true {
 		case input.Down(ev.InputKindDown):
 			fmt.Printf("Adding a new phrase!\n")
-			clone := currentTrack.Phrases[ui.SectionId][ui.PhraseId].Clone()
+			clone := CurrentProject.Phrases[CurrentPhrase().ID].Clone()
 			currentTrack.Phrases[ui.SectionId] = append(currentTrack.Phrases[ui.SectionId], clone)
 			currentTrack.PhraseIds[ui.SectionId] = append(currentTrack.PhraseIds[ui.SectionId], clone.ID)
 			ui.PhraseId = len(currentTrack.Phrases[ui.SectionId]) - 1
