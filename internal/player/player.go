@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 	. "trkr"
-	"trkr/external/msfa"
 	"trkr/internal/audio"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
@@ -148,6 +147,9 @@ func Play() {
 					} else {
 						sampleSource = SampleSourceTypeFm
 					}
+					if sampleSource == SampleSourceTypePerc {
+						Logf("Perc on %d.\n", Head.Section.TotalRowsCounter)
+					}
 					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume)
 					// Logf("Queued %d %d %v %d %s", columnId, trackId, note, track.InstrumentId, sampleSource.UiString())
 				}
@@ -178,15 +180,6 @@ func Play() {
 				Head.CurrentSectionId = 0
 			}
 			Head = NewPlayhead(Head.CurrentSectionId)
-		}
-
-		// Let's automate parameters! :D
-		if Head.Section.TotalRowsCounter%4 == 0 {
-			CurrentProject.Tracks[4].Volume = 1.0
-			msfa.ChangeVolume(4, 256)
-		} else {
-			CurrentProject.Tracks[4].Volume = 0.25
-			msfa.ChangeVolume(4, 256/4)
 		}
 
 		return true

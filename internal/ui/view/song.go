@@ -108,8 +108,7 @@ func (pv *SongView) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 		ui.SectionId = Clamp(ui.SectionId+delta, 0, len(CurrentProject.Sections)-1)
 		Logf("ui.SectionId was set to %d.\n", ui.SectionId)
 		return true
-	} else if input.Down(ev.InputKindA) || (input.Down(ev.InputKindB) && input.Down(ev.InputKindUp)) {
-		fmt.Printf("Current row: %d\n", currentRow)
+	} else if songCurrentCol > 0 && input.Down(ev.InputKindA) || (input.Down(ev.InputKindB) && input.Down(ev.InputKindUp)) {
 		if len(CurrentProject.Tracks[ui.TrackId].Phrases[ui.SectionId]) == 0 {
 			p := NewPhrase(CurrentProject)
 			CurrentProject.Tracks[ui.TrackId].PhraseIds[ui.SectionId] = []int32{p.ID}
@@ -124,6 +123,15 @@ func (pv *SongView) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 			return true
 		}, el.ID)
 		return true
+	} else if songCurrentCol == 0 && input.Down(ev.InputKindDir) && input.Down(ev.InputKindA) {
+		if songCurrentCol == 0 {
+			delta := 1
+			if input.Down(ev.InputKindLeft) {
+				delta = -1
+			}
+			CurrentProject.Sections[ui.SectionId].Rows = Clamp(uint32(int(CurrentProject.Sections[ui.SectionId].Rows)+delta), 0, 1024)
+			return true
+		}
 	} else if input.Down(ev.InputKindDir) {
 		movementMultiplier := int(Clamp(input.Tick(ev.InputKindDir), 1, 10))
 		if input.Down(ev.InputKindDown) {

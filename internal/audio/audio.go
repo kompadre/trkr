@@ -96,19 +96,6 @@ func initPitchTable() {
 	}
 }
 
-func InitializeAliases(trackId int, track *Track) {
-	// var volume float32 = 1.0
-	// track.Sample.Sound = rl.LoadSound(track.Sample.SampleFile)
-	// for i := 0; i < AliasPoolSize; i++ {
-	// 	aliasesPool[trackId][i] = rl.LoadSoundAlias(track.Sample.Sound)
-	// 	rl.SetSoundVolume(aliasesPool[trackId][i], volume)
-	// }
-}
-
-var aliasesPool [9][AliasPoolSize]rl.Sound
-var aliasesPlaying [9][AliasPoolSize]bool
-var nextAlias = [9]int{}
-
 func GetPitch(note Note, rootNote Note) float64 {
 	// Calculate the offset and map it to our 0-255 table index
 	offset := (note - rootNote) + 128
@@ -194,13 +181,6 @@ func PlaySoundFm(columnId uint8, trackId uint8, note Note, velocity uint8) {
 }
 
 func Cleanup() {
-	for track := range aliasesPool {
-		for i := range aliasesPool[track] {
-			if rl.IsSoundPlaying(aliasesPool[track][i]) {
-				rl.StopSound(aliasesPool[track][i])
-			}
-		}
-	}
 	for trackId := range CurrentProject.Tracks {
 		CurrentProject.Tracks[trackId].Cleanup()
 	}

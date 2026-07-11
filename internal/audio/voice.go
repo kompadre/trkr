@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	. "trkr"
+	"trkr/internal/audio/perc"
 	ev "trkr/internal/events"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -141,7 +142,71 @@ func (v *Voice) Play() {
 	if v.InstrumentId == 0xff {
 		v.Envelope.State = EnvSustain
 		return
+	} else if v.Instrument.SampleSourceType == SampleSourceTypePerc {
+		v.Envelope.State = EnvSustain
+		slot := int(v.Note) % len(v.Instrument.Percs)
+		switch slot {
+		case 0:
+			v.Instrument.Percs[slot] = perc.Percussion{
+				Freq:       45,
+				ModAmt:     0.5,
+				NoiseEnv:   0.0,
+				AmpEnv:     1.0,
+				PitchEnv:   1.0,
+				AmpDecay:   0.9995,
+				PitchDecay: 0.995,
+				NoiseDecay: 0.999,
+				NoiseMix:   0.0,
+			}
+		case 1:
+			v.Instrument.Percs[slot] = perc.Percussion{
+				Freq:   160, // The fundamental frequency of a typical snare head hit (150Hz - 220Hz)
+				ModAmt: 1.5, // Higher FM index adds metallic, harsh overtones to the initial strike
+
+				// Envelopes start at full blast
+				AmpEnv:   1.0,
+				PitchEnv: 1.0,
+				NoiseEnv: 1.0,
+
+				// --- The Snare Tuning ---
+				AmpDecay:   0.9985, // A bit shorter than a kick—snare bodies decay fast
+				PitchDecay: 0.985,  // Still very fast, but slightly slower than a kick to give it a "crack"
+				NoiseDecay: 0.9992, // CRITICAL: Noise decay is LONGER than AmpDecay!
+				NoiseMix:   0.6,
+			}
+		case 2:
+			v.Instrument.Percs[slot] = perc.Percussion{
+				Freq:   400.0, // The tone frequency matters less here, but keep it up out of the mud
+				ModAmt: 8.0,   // Extreme FM modulation creates chaotic, unharmonious metallic frequencies
+
+				// Envelopes
+				AmpEnv:   0.2, // Keep the metallic tone transient incredibly quiet...
+				NoiseEnv: 0.7, // ...and let the filtered noise do 90% of the work!
+				PitchEnv: 0.0, // No pitch sweep needed for hats
+
+				// --- The Hat Tuning ---
+				AmpDecay:   0.980, // Tonal component vanishes almost instantly
+				PitchDecay: 0.0,
+				NoiseDecay: 0.9985, // Adjust this for Closed vs. Open hats!
+				NoiseMix:   1.0,
+			}
+		case 3:
+			v.Instrument.Percs[slot] = perc.Percussion{
+				Freq:       400,
+				ModRatio:   2.31,
+				ModAmt:     1.2,
+				NoiseEnv:   0.0,
+				AmpEnv:     1.0,
+				PitchEnv:   1.0,
+				AmpDecay:   0.995,
+				PitchDecay: 0.995,
+				NoiseDecay: 0.990,
+				NoiseMix:   0.15,
+			}
+		}
+		return
 	}
+
 	// For a sample with root note C3 (MIDI 48)
 
 	// Define C3 using your tracker's native index system (C0 = 1, C1 = 13, C2 = 25, C3 = 37)
@@ -192,7 +257,8 @@ func (v *Voice) IsPlaying() bool {
 func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float32 {
 	var volScale float32 = float32(v.Volume) // * headroomScale
 	var maxAbs float32
-	var msfaBuffer []int16
+	var bufferMsfa []int16
+	var bufferPerc []float32
 	var waveLenInt int
 	var waveLen float64
 	if v.TrackId == 0xff {
@@ -200,8 +266,14 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			Logf("Synth was nil.\n")
 			return 0.0
 		}
-		msfaBuffer = make([]int16, len(writeBuffer))
-		SynthInstance.GetSamples(msfaBuffer)
+		bufferMsfa = make([]int16, len(writeBuffer))
+		SynthInstance.GetSamples(bufferMsfa)
+	} else if v.Instrument.SampleSourceType == SampleSourceTypePerc {
+		bufferPerc = make([]float32, len(writeBuffer))
+		waveLenInt = v.Instrument.GetPercSamples(bufferPerc, int(v.Note))
+		//Logf("bufferPercHead: %v.\n", bufferPerc[:99])
+		// Logf("bufferPercTail: %v.\n", bufferPerc[len(bufferPerc)-99:])
+		waveLen = float64(waveLenInt)
 	} else {
 		waveLenInt = len(v.Samples)
 		waveLen = float64(waveLenInt)
@@ -226,7 +298,9 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 		case SampleSourceTypeCosine:
 			sample = float32(math.Cos(v._phase * 2.0 * math.Pi))
 		case SampleSourceTypeFmPickup:
-			sample = float32(msfaBuffer[i]) / 32767.5
+			sample = float32(bufferMsfa[i]) / 32767.5
+		case SampleSourceTypePerc:
+			sample = bufferPerc[i]
 		case SampleSourceTypeWavefile:
 			if !v.Instrument.SamplesLoaded {
 				Logf("Samples not loaded, returning 0.0 for instrument %d!\n", v.Instrument.Id)
@@ -258,13 +332,12 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			}
 		}
 
-		if v.Instrument.SampleSourceType != SampleSourceTypeFm && v.Instrument.SampleSourceType != SampleSourceTypeWavefile {
+		if false {
 			volScale *= envVolume
 		}
 
 		sample *= volScale
 		maxAbs = max(maxAbs, sample, -sample)
-
 		writeBuffer[i] += sample
 		v._phase += v._phaseStep
 
@@ -299,48 +372,49 @@ CommandLoop:
 					PlaySoundFm(cmd.ColumnId, cmd.TrackId, cmd.Note, cmd.Velocity)
 				}
 				//break CommandLoop
-			}
-
-			switch cmd.Note {
-			case NoteCut:
-				for i := range voicePool {
-					if (voicePool[i].TrackId == cmd.TrackId || cmd.TrackId == 0) && (voicePool[i].ColumnId == cmd.ColumnId || cmd.ColumnId == 0) && voicePool[i].IsPlaying() {
-						Logf("Cutting %d.\n", i)
-						voicePool[i].Cut()
-						// break // Column coordinates are unique, so we can stop searching immediately
+			} else {
+				switch cmd.Note {
+				case NoteCut:
+					for i := range voicePool {
+						if (voicePool[i].TrackId == cmd.TrackId || cmd.TrackId == 0) && (voicePool[i].ColumnId == cmd.ColumnId || cmd.ColumnId == 0) && voicePool[i].IsPlaying() {
+							Logf("Cutting %d.\n", i)
+							voicePool[i].Cut()
+							// break // Column coordinates are unique, so we can stop searching immediately
+						}
 					}
-				}
 
-			case NoteOff:
-				for i := range voicePool {
-					if voicePool[i].TrackId == cmd.TrackId && voicePool[i].ColumnId == cmd.ColumnId && voicePool[i].IsPlaying() {
-						voicePool[i].Stop()
-						break // Column coordinates are unique, so we can stop searching immediately
+				case NoteOff:
+					for i := range voicePool {
+						if voicePool[i].TrackId == cmd.TrackId && voicePool[i].ColumnId == cmd.ColumnId && voicePool[i].IsPlaying() {
+							voicePool[i].Stop()
+							break // Column coordinates are unique, so we can stop searching immediately
+						}
 					}
-				}
-			default:
-				ins := &CurrentProject.Instruments[cmd.InstrumentId]
-				if ins.SampleSourceType == SampleSourceTypeWavefile && !ins.SamplesLoaded {
-					ins.LoadSamples()
-					Logf("Filenames: %v, len(Samples[0]): %d.\n", ins.SampleSource, len(ins.Samples[0]))
-					continue
-				}
-				targetVoice := FindFreeVoice(cmd.ColumnId, cmd.TrackId, cmd.InstrumentId)
-				targetVoice.InstrumentId = ins.Id
-				targetVoice.Instrument = ins
-				if ins.SampleSourceType == SampleSourceTypeWavefile {
-					idx := int(cmd.Note) % (len(targetVoice.Instrument.Samples))
-					if !(len(targetVoice.Instrument.Samples[idx]) > 0) {
+
+				default:
+					ins := &CurrentProject.Instruments[cmd.InstrumentId]
+					if ins.SampleSourceType == SampleSourceTypeWavefile && !ins.SamplesLoaded {
+						ins.LoadSamples()
+						Logf("Filenames: %v, len(Samples[0]): %d.\n", ins.SampleSource, len(ins.Samples[0]))
 						continue
 					}
-					targetVoice.Samples = targetVoice.Instrument.Samples[idx][:]
+					targetVoice := FindFreeVoice(cmd.ColumnId, cmd.TrackId, cmd.InstrumentId)
+					targetVoice.InstrumentId = ins.Id
+					targetVoice.Instrument = ins
+					if ins.SampleSourceType == SampleSourceTypeWavefile {
+						idx := int(cmd.Note) % (len(targetVoice.Instrument.Samples))
+						if !(len(targetVoice.Instrument.Samples[idx]) > 0) {
+							continue
+						}
+						targetVoice.Samples = targetVoice.Instrument.Samples[idx][:]
+					}
+					targetVoice.TrackId = cmd.TrackId
+					targetVoice.ColumnId = cmd.ColumnId
+					targetVoice.Note = cmd.Note
+					targetVoice.Envelope.SustainTicks = cmd.SustainTicks
+					targetVoice.Volume = cmd.Volume
+					targetVoice.Play()
 				}
-				targetVoice.TrackId = cmd.TrackId
-				targetVoice.ColumnId = cmd.ColumnId
-				targetVoice.Note = cmd.Note
-				targetVoice.Envelope.SustainTicks = cmd.SustainTicks
-				targetVoice.Volume = cmd.Volume
-				targetVoice.Play()
 			}
 		default:
 			break CommandLoop
@@ -377,6 +451,11 @@ func MasterUpdate(ctx ev.EventContext) bool {
 				continue
 			}
 			maxAbs = max(maxAbs, v.UpdateVoice(masterBuffer[:], headroomScale))
+		}
+
+		doubleChannel := make([]float32, len(masterBuffer)*2)
+		for i := range masterBuffer {
+			doubleChannel[i*2], doubleChannel[i*2+1] = masterBuffer[i], masterBuffer[i]
 		}
 		// saturator(masterBuffer[:], maxAbs)
 		// filter(masterBuffer[:])

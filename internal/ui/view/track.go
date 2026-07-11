@@ -24,10 +24,13 @@ var SyncToPlay bool
 var LastNote Note = Note(37)
 var uiElem *ui.Element
 var leftPaneKnobs map[uint8](func(delta int))
+var showVelocities bool
 
 const (
 	RowHeight = 16
 	FontSize  = 16
+
+	DefaultVelocity = 100
 )
 
 var RowsInScreen = int((math.Floor(float64(ui.GetOptions().ScreenHeight-40) / RowHeight)))
@@ -70,11 +73,6 @@ func CreateTrack(rootElement *ui.Element) {
 		currentTrack := CurrentTrack()
 		currentTrack.Skips = Clamp(uint8(int(currentTrack.Skips)+delta), 0, 16)
 	}
-	leftPaneKnobs[4] = func(delta int) {
-		currentPhrase := CurrentPhrase()
-		currentPhrase.Repeats = Clamp(uint8(int(currentPhrase.Repeats)+delta), 0, 16)
-		currentPhrase.CurrentRepeat = 0
-	}
 	leftPaneKnobs[3] = func(delta int) {
 		currentTrack := CurrentProject.Tracks[ui.TrackId]
 		currentPhrase := currentTrack.Phrases[ui.SectionId][ui.PhraseId]
@@ -85,10 +83,15 @@ func CreateTrack(rootElement *ui.Element) {
 			currentTrack.Phrases[ui.SectionId][ui.PhraseId] = &CurrentProject.Phrases[newId]
 		}
 	}
+	leftPaneKnobs[4] = func(delta int) {
+		currentPhrase := CurrentPhrase()
+		currentPhrase.Repeats = Clamp(uint8(int(currentPhrase.Repeats)+delta), 0, 16)
+		currentPhrase.CurrentRepeat = 0
+	}
 
 	leftPaneKnobs[5] = func(delta int) {
 		ins := CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)].Instrument
-		ins.SampleSourceType = Clamp(ins.SampleSourceType+SampleSourceType(delta), 0, SampleSourceTypeFm)
+		ins.SampleSourceType = Clamp(ins.SampleSourceType+SampleSourceType(delta), 0, SampleSourceTypePerc)
 		if ins.SampleSourceType == SampleSourceTypeWavefile {
 			ins.SampleSource = [3]string{"./assets/music/kick.wav", "./assets/music/snare.wav", "./assets/music/hat.wav"}
 			ins.RootNote = 0
@@ -96,7 +99,6 @@ func CreateTrack(rootElement *ui.Element) {
 			ins.LoadSamples()
 		}
 	}
-
 	leftPaneKnobs[6] = func(delta int) {
 		globPattern := "./assets/syx/dexed/*.syx"
 		banks := []string{"./assets/syx/Dexed_01.syx"}
@@ -201,7 +203,11 @@ func drawTrack(ctx events.EventContext, hasFocus bool) bool {
 				break
 			}
 			if step.Notes[j] != NoteNone {
-				ui.DrawText(step.Notes[j].ToString(), int32(8+columnStarts[j+1]), int32(y), RowHeight, NoteColor[step.Notes[j]%12])
+				if !showVelocities {
+					ui.DrawText(step.Notes[j].ToString(), int32(8+columnStarts[j+1]), int32(y), RowHeight, NoteColor[step.Notes[j]%12])
+				} else {
+					ui.DrawText(fmt.Sprintf("%03d", step.Velocities[j]-1), int32(8+columnStarts[j+1]), int32(y), RowHeight, NoteColor[step.Notes[j]%12])
+				}
 			}
 		}
 	}
@@ -327,6 +333,8 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 	} else if input.Down(ev.InputKindA) && input.Down(ev.InputKindDir) {
 		if currentCol > 0 {
 			noteSlot := &CurrentPhrase().Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Notes[Clamp(currentCol-1, 0, MaxNotesInStep)]
+			velSlot := &CurrentPhrase().Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Velocities[Clamp(currentCol-1, 0, MaxNotesInStep)]
+
 			oldNote := *noteSlot
 			if input.Down(ev.InputKindRight) {
 				*noteSlot++
@@ -340,6 +348,12 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 
 			if *noteSlot == NoteSkip || oldNote == NoteSkip {
 				CurrentPhrase().EffectiveRows = 0
+			}
+			if *noteSlot == NoteNone || *noteSlot == NoteSkip || *noteSlot == NoteOff || *noteSlot == NoteCut {
+				*velSlot = 0
+			} else if *velSlot == 0 {
+				// Default velocity for a new note.
+				*velSlot = 100
 			}
 			result = true
 		} else {
@@ -355,7 +369,15 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 				return true
 			}
 		}
-	} else if input.Down(ev.InputKindB) && (input.Tick(ev.InputKindB) > uint16(rl.GetFPS())) {
+	} else if input.Down(ev.InputKindB) && input.Down(ev.InputKindDir) {
+		velSlot := &CurrentPhrase().Steps[Clamp(currentRow, 0, MaxStepsInPhrase)].Velocities[Clamp(currentCol-1, 0, MaxNotesInStep)]
+		// oldVel := *velSlot
+		if input.Down(ev.InputKindRight) {
+			*velSlot++
+		} else if input.Down(ev.InputKindLeft) {
+			*velSlot--
+		}
+	} else if input.Down(ev.InputKindL) && input.Down(ev.InputKindDown) {
 		_ = ui.NewTransition(ui.SongDialog, rl.NewVector2(0, 0))
 		ev.RegisterCallback(ev.EventKindPostUpdate, func(ctx ev.EventContext) bool {
 			el.Visible = false
@@ -400,6 +422,12 @@ func handleInputTrack(input *ev.InputSnapshot, el *ui.Element) bool {
 			showSettings()
 			result = true
 		}
+	}
+
+	if input.Down(ev.InputKindB) {
+		showVelocities = true
+	} else if showVelocities {
+		showVelocities = false
 	}
 	return result
 }

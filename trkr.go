@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"trkr/internal/audio/perc"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"golang.org/x/exp/constraints"
@@ -39,8 +40,9 @@ const (
 type Effect uint8
 
 type Step struct {
-	Notes   [MaxNotesInStep]Note
-	Effects [MaxEffectsInStep]Effect
+	Notes      [MaxNotesInStep]Note
+	Velocities [MaxNotesInStep]uint8
+	Effects    [MaxEffectsInStep]Effect
 }
 
 type Phrase struct {
@@ -103,6 +105,7 @@ const (
 	SampleSourceTypeSawtooth
 	SampleSourceTypeCosine
 	SampleSourceTypeFm
+	SampleSourceTypePerc
 	SampleSourceTypeFmPickup
 )
 
@@ -120,6 +123,8 @@ func (sst SampleSourceType) UiString() string {
 		return "Square"
 	case SampleSourceTypeCosine:
 		return "Cosine"
+	case SampleSourceTypePerc:
+		return "Percussion"
 	case SampleSourceTypeSawtooth:
 		return "Sawtooth"
 	case SampleSourceTypeFm:
@@ -141,6 +146,11 @@ type Instrument struct {
 	LoopEnd          float64
 	SamplesLoaded    bool `json:"-"`
 	Program          uint8
+	Percs            [4]perc.Percussion
+}
+
+func (in *Instrument) GetPercSamples(buffer []float32, slot int) int {
+	return in.Percs[slot%len(in.Percs)].GetSamples(buffer)
 }
 
 func (in *Instrument) LoadSamples() {
