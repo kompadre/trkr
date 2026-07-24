@@ -5,21 +5,26 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 
 	//	"math/rand"
 	//	"time"
-	"path"
+	path "path"
 	. "trkr"
 	"trkr/external/msfa"
+	"trkr/internal/audio/miniaudio"
 )
+
+var TickDuration time.Duration
 
 func Init() {
 	fmt.Print("Initializing...")
 	initPitchTable()
-	rl.SetAudioStreamBufferSizeDefault(VoiceBufferSize)
-	rl.InitAudioDevice() // Initialize audio device
+	if err := miniaudio.Init(uint32(VoiceSampleRate), VoiceBufferSize*8); err != nil {
+		fmt.Printf("Miniaudio init failed: %v\n", err)
+	}
 	InitVoiceMasterStream()
 	if CurrentProject.FmPatchName == "" {
 		CurrentProject.FmPatchName = "./assets/syx/Dexed_01.syx"
@@ -112,18 +117,30 @@ func PlaySound(sound rl.Sound) {
 	rl.PlaySound(sound)
 }
 
-func PlaySoundMulti(columnId uint8, trackId uint8, note Note, instrumentId uint8, sampleSourceType SampleSourceType, velocity uint8, volume float64) {
+func PlaySoundMulti(columnId uint8, trackId uint8, note Note, instrumentId uint8, sampleSourceType SampleSourceType, velocity uint8, volume float64, delayTicks float64) {
 	sustainTicks := 0.5 * (VoiceSampleRate / (float64(BeatsPerMinute) / 60))
 	//sustainTicks := 4 * 24
-	CommandQueue <- VoiceCommand{
-		TrackId:          trackId,
-		ColumnId:         columnId,
-		InstrumentId:     instrumentId,
-		Note:             note,
-		SustainTicks:     uint32(sustainTicks),
-		SampleSourceType: sampleSourceType,
-		Velocity:         Clamp(velocity, 0, 127),
-		Volume:           Clamp(volume, 0.0, 1.0),
+
+	action := func() {
+		CommandQueue <- VoiceCommand{
+			TrackId:          trackId,
+			ColumnId:         columnId,
+			InstrumentId:     instrumentId,
+			Note:             note,
+			SustainTicks:     uint32(sustainTicks),
+			SampleSourceType: sampleSourceType,
+			Velocity:         Clamp(velocity, 0, 127),
+			Volume:           Clamp(volume, 0.0, 1.0),
+		}
+	}
+
+	if delayTicks > 0 {
+		go func() {
+			time.Sleep(time.Duration(float64(TickDuration) * delayTicks))
+			action()
+		}()
+	} else {
+		action()
 	}
 }
 
@@ -185,7 +202,7 @@ func Cleanup() {
 		CurrentProject.Tracks[trackId].Cleanup()
 	}
 
-	rl.CloseAudioDevice()
+	miniaudio.Close()
 	// synth.Free()
 }
 

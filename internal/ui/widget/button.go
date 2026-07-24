@@ -13,11 +13,12 @@ type Button struct {
 	Action ui.Action
 }
 
-func NewButton(label string, relativeLeft int32, relativeTop int32, width int32, height int32, action ui.Action, parent *ui.Element) *Button {
+func NewButton(label string, col [4]int, height int32, action ui.Action, parent *ui.Element) *ui.Element {
 	btn := Button{Label: label, Action: action}
-	el := ui.NewElement(relativeLeft, relativeTop, width, height, btn, parent)
+	el := ui.NewElement(0, 0, 0, height, btn, parent)
+	el.Col = col
 	el.Core = &btn
-	return &btn
+	return el
 }
 
 func (b Button) Show() {}
@@ -36,22 +37,19 @@ func (b Button) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 }
 
 func (b Button) Draw(ctx ev.EventContext, hasFocus bool) bool {
-	switch t := ctx.EventPayload.(type) {
-	case *ui.ElementDrawPayload:
-		if container, v := t.Laid.Col(12, 12, 1, 1); v {
-			bgcolor := RGBA(30, 250, 30, 250)
-			// bgcolor := ui.WindowBg2
-			fgcolor := ui.WindowFg2
-			labelPreffix := " "
-
-			if hasFocus {
-				bgcolor = ui.WindowBg3
-				fgcolor = ui.WindowFg3
-				labelPreffix = ">"
-			}
-			rl.DrawRectangleRec(container, bgcolor)
-			rl.DrawText(labelPreffix+b.Label, int32(container.X), int32(container.Y), 20, fgcolor)
-		}
+	laid := ctx.EventPayload.(*ui.ElementDrawPayload).Laid
+	container := laid.Bounds()
+	bgcolor := RGBA(30, 250, 30, 250)
+	fgcolor := ui.WindowFg2
+	labelPreffix := " "
+	if hasFocus {
+		bgcolor = ui.WindowBg3
+		fgcolor = ui.WindowFg3
+		labelPreffix = ">"
 	}
+	rl.DrawRectangleRec(container, bgcolor)
+	// rl.DrawRectangleLinesEx(container, 3, rl.Red)
+	rl.DrawText(labelPreffix+b.Label, int32(container.X+10), int32(container.Y+10), 20, fgcolor)
+	laid.SetRowHeight(30)
 	return false
 }

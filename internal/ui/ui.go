@@ -84,24 +84,34 @@ func (ec *ElementCoreInstance) Draw(ctx ev.EventContext, hasFocus bool) bool {
 }
 
 type Element struct {
-	ID           uint16
-	Core         ElementCore
-	Rectangle    rl.Rectangle
-	IsAnchor     bool
-	LeftPadding  int32
-	TopPadding   int32
-	Parent       *Element
-	Children     []*Element
-	FocusedChild *Element
-	Visible      bool
-	Removed      bool
+	ID                uint16
+	Name              string
+	Core              ElementCore
+	Rectangle         rl.Rectangle
+	ComputedBounds    rl.Rectangle
+	IsAnchor          bool
+	LeftPadding       int32
+	TopPadding        int32
+	Parent            *Element
+	Children          []*Element
+	FocusedChild      *Element
+	FocusOutAfterLast bool
+	Col               [4]int
+	Visible           bool
+	Removed           bool
+}
+
+func (e *Element) Bounds() rl.Rectangle {
+	if e.ComputedBounds.Width > 0 || e.ComputedBounds.Height > 0 {
+		return e.ComputedBounds
+	}
+	return e.Rectangle
 }
 
 var RootElement *Element
 var TrackDialog *Element
 var SongDialog *Element
 var SettingsDialog *Element
-var SettingsProject *Element
 
 func NewElement(left int32, top int32, width int32, height int32, core ElementCore, parent *Element) *Element {
 	rect := rl.Rectangle{X: float32(left), Y: float32(top), Width: float32(width), Height: float32(height)}
@@ -117,12 +127,23 @@ func NewElement(left int32, top int32, width int32, height int32, core ElementCo
 }
 
 func (e *Element) HandleInput(input *ev.InputSnapshot) bool {
-	if e.FocusedChild != nil {
+	if e.FocusedChild != nil && e.FocusedChild.Visible {
 		if e.FocusedChild.HandleInput(input) {
 			return true
 		}
+	} else if e.FocusedChild != nil && !e.FocusedChild.Visible {
+		e.FocusJump(0)
+		return false
 	}
+
 	if e.Core == nil {
+		if input.Down(ev.InputKindDown) || input.Down(ev.InputKindRight) {
+			e.FocusJump(1)
+			return true
+		} else if input.Down(ev.InputKindUp) || input.Down(ev.InputKindLeft) {
+			e.FocusJump(-1)
+			return true
+		}
 		return false
 	}
 	return e.Core.HandleInput(input, e)
@@ -134,27 +155,43 @@ func (e *Element) FocusJump(offset int) {
 		e.FocusedChild = nil
 		return
 	}
+	if !e.Visible && e.HasFocus() && e.Parent != nil {
+		e.Parent.FocusJump(0)
+		return
+	}
 
 	currentIndex := -1
-	hasVisibleChildren := false
-
+	lastVisibleChildIdx := -1
+	numVisibleChildren := 0
+	var firstVisibileChild *Element
 	for i, child := range e.Children {
 		if child == e.FocusedChild {
 			currentIndex = i
 		}
 		if child.Visible {
-			hasVisibleChildren = true
-		}
-		if hasVisibleChildren && currentIndex > -1 {
-			break
+			if firstVisibileChild == nil {
+				firstVisibileChild = child
+			}
+			numVisibleChildren++
+			lastVisibleChildIdx = i
 		}
 	}
 
 	// If all children are invisible, clear focus immediately and bail
-	if !hasVisibleChildren {
+	if numVisibleChildren == 0 {
 		fmt.Println("Container has no visible children. Clearing focus.")
 		e.FocusedChild = nil
 		return
+	} else if numVisibleChildren == 1 { // Is the only visible child
+		e.FocusedChild = e.Children[lastVisibleChildIdx]
+		fmt.Println("We have only one visible child.")
+		return
+	}
+
+	if offset == 1 && lastVisibleChildIdx == currentIndex && e.FocusOutAfterLast {
+		// If we ask for the next child but we already at the last visible one.
+		e.FocusedChild = firstVisibileChild
+		e.Parent.FocusJump(1)
 	}
 
 	if currentIndex == -1 {
@@ -183,22 +220,46 @@ func (e *Element) SetFocus(focusedElem *Element) {
 }
 
 func (e *Element) Draw(ctx ev.EventContext) bool {
+	laid := ctx.EventPayload.(*ElementDrawPayload).Laid
 	if e.IsAnchor {
-		ctx.EventPayload.(*ElementDrawPayload).Laid.PushContext(e.Rectangle)
-		ctx.EventPayload.(*ElementDrawPayload).Laid.SetRowHeight(e.Rectangle.Height)
+		laid.PushGreedyContext(e.Rectangle)
+		laid.SetBreakpoint(0)
 		defer func() {
-			ctx.EventPayload.(*ElementDrawPayload).Laid.PopContext()
+			laid.PopContext()
+			// rl.DrawRectangleLinesEx(laid.Bounds(), 3, rl.Blue)
+		}()
+	} else if e.Col != [4]int{} {
+		if !laid.EnterCol(e.Col[0], e.Col[1], e.Col[2], e.Col[3]) {
+			return true
+		}
+		defer func() {
+			laid.ExitCol()
 		}()
 	}
+
+	e.ComputedBounds = laid.Bounds()
+	if e.ID > 0 {
+		laid.SetCachedBounds(e.ID, e.ComputedBounds)
+	}
+	if e.ID == 777 {
+		rl.DrawRectangleLinesEx(e.ComputedBounds, 3, rl.Red)
+	}
+
+	laid.SetRowHeight(e.Rectangle.Height)
+	laid.Pad(float32(e.LeftPadding), float32(e.TopPadding))
 	if e.Core != nil && e.Core.Draw(ctx, e.HasFocus()) {
 		return true
 	}
+	//	laid.Context().CursorY += e.Rectangle.Height
 
 	for i := range e.Children {
 		if e.Children[i].Visible {
 			ctx.EventPayload.(*ElementDrawPayload).Element = e.Children[i]
 			if e.Children[i].Draw(ctx) {
 				return true
+			}
+			if e.IsAnchor {
+				laid.Context().CursorX += e.Children[i].Rectangle.Width
 			}
 		}
 	}
@@ -208,8 +269,13 @@ func (e *Element) Draw(ctx ev.EventContext) bool {
 
 func (el *Element) DrawContainer(ctx ev.EventContext) {
 	ctxPay := ctx.EventPayload.(*ElementDrawPayload)
+	rec := ctxPay.Laid.Bounds()
+	if rec.Height == 0 {
+		rec.Height = 20
+	}
+	Logf("Paiting element's container: %v.\n", rec)
 	// rect := rl.NewRectangle(float32(ctxPay.Left), float32(ctxPay.Top), float32(el.Width-ctxPay.Left*2), float32(el.Height))
-	rl.DrawRectangleLinesEx(ctxPay.Laid.Bounds(), 2, rl.Black)
+	rl.DrawRectangleLinesEx(rec, 2, rl.Black)
 }
 
 func (e *Element) Add(c *Element, SetFocus bool) {

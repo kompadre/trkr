@@ -92,7 +92,7 @@ func (v *Percussion) ProcessSample(idx int) float32 {
 
 func (v *Percussion) GetSamples(buffer []float32) int {
 	idx := 0
-	for idx < len(buffer) /* && v.AmpEnv >= 0.001 */ {
+	for idx < len(buffer) && v.AmpEnv >= 0.0001 {
 		buffer[idx] = v.ProcessSample(idx)
 		idx++
 	}

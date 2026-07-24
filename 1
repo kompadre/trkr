@@ -1,0 +1,24 @@
+package main
+
+import "trkr/internal/audio/miniaudio"
+
+func main() {
+
+	// 1. Initialize miniaudio device with 48000 Hz and 4096 frames ringbuffer capacity per channel
+	err := miniaudio.Init(48000, 4096)
+	if err != nil {
+		log.Fatalf("Audio error: %v", err)
+	}
+	defer miniaudio.Close()
+
+	// 2. Feed stereo audio buffers (e.g. from your voice mixer loop)
+	leftBuffer := [512]float32{ /* ... left samples ... */ }
+	rightBuffer := [512]float32{ /* ... right samples ... */ }
+	for {
+		// Check available ringbuffer space before writing if needed
+		if miniaudio.AvailableWriteSpace() >= len(leftBuffer) {
+			framesWritten := miniaudio.WriteChannels(leftBuffer, rightBuffer)
+		}
+	}
+
+}

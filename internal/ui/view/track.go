@@ -146,31 +146,32 @@ func drawTrack(ctx events.EventContext, hasFocus bool) bool {
 	firstVerticalItem := max(0, currentRow-RowsInScreen)
 	laid := ctx.EventPayload.(*ui.ElementDrawPayload).Laid
 
-	if v := laid.EnterCol(4, 4, 4, 2); v {
-		laid.Pad(10, 10)
-		laid.TextBlock(fmt.Sprintf("Track %d", ui.TrackId), FontSize, rl.White)
-		if CurrentProject.Tracks[ui.TrackId].Instrument != nil {
-			laid.Pad(10, 0)
-			laid.TextBlock(fmt.Sprintf("Volume: %0.2f", currentTrack.Volume*100.0), FontSize, rl.White)
-			if currentTrack.Skips > 0 {
-				laid.TextBlock(fmt.Sprintf("Speed: 1/%d", currentTrack.Skips), FontSize, rl.White)
-			} else {
-				laid.TextBlock("Speed: Normal", FontSize, rl.White)
-			}
-			laid.TextBlock(fmt.Sprintf("Phrase: %d", currentPhrase.ID), FontSize, rl.White)
-			laid.Pad(10, 0)
-			laid.TextBlock(fmt.Sprintf("Repeats: %d", currentPhrase.Repeats), FontSize, rl.White)
-			laid.Pad(-10, 0)
-			laid.TextBlock(CurrentProject.Tracks[ui.TrackId].Instrument.SampleSourceType.UiString(), FontSize, rl.White)
-			switch CurrentProject.Tracks[ui.TrackId].Instrument.SampleSourceType {
-			case SampleSourceTypeFm:
-				laid.TextBlock(path.Base(CurrentProject.FmPatchName), FontSize, rl.White)
-				laid.TextBlock(fmt.Sprintf("%d: %s", currentTrack.Instrument.Program, audio.SynthProgramName(currentTrack.Id)), FontSize, rl.White)
-			}
-			// laid.TextBlock(fmt.Sprintf("BPM: %02.5f", player.EffectiveBpm), rowHeight, rl.White)
+	//if v := laid.EnterCol(4, 4, 4, 2); v {
+	rect := rl.NewRectangle(0, 0, float32(columnWidths[0]), float32(rl.GetScreenHeight()))
+	laid.PushGreedyContext(rect)
+	laid.Pad(10, 10)
+	laid.TextBlock(fmt.Sprintf("Track %d", ui.TrackId), FontSize, rl.White)
+	if CurrentProject.Tracks[ui.TrackId].Instrument != nil {
+		laid.Pad(10, 0)
+		laid.TextBlock(fmt.Sprintf("Volume: %0.2f", currentTrack.Volume*100.0), FontSize, rl.White)
+		if currentTrack.Skips > 0 {
+			laid.TextBlock(fmt.Sprintf("Speed: 1/%d", currentTrack.Skips), FontSize, rl.White)
+		} else {
+			laid.TextBlock("Speed: Normal", FontSize, rl.White)
 		}
-		laid.ExitCol()
+		laid.TextBlock(fmt.Sprintf("Phrase: %d", currentPhrase.ID), FontSize, rl.White)
+		laid.Pad(10, 0)
+		laid.TextBlock(fmt.Sprintf("Repeats: %d", currentPhrase.Repeats), FontSize, rl.White)
+		laid.Pad(-10, 0)
+		laid.TextBlock(CurrentProject.Tracks[ui.TrackId].Instrument.SampleSourceType.UiString(), FontSize, rl.White)
+		switch CurrentProject.Tracks[ui.TrackId].Instrument.SampleSourceType {
+		case SampleSourceTypeFm:
+			laid.TextBlock(path.Base(CurrentProject.FmPatchName), FontSize, rl.White)
+			laid.TextBlock(fmt.Sprintf("%d: %s", currentTrack.Instrument.Program, audio.SynthProgramName(currentTrack.Id)), FontSize, rl.White)
+		}
+		// laid.TextBlock(fmt.Sprintf("BPM: %02.5f", player.EffectiveBpm), rowHeight, rl.White)
 	}
+	laid.PopContext()
 
 	laid.SetRowHeight(0)
 	bottomOffset := int32(ui.GetOptions().ScreenHeight - 10)
@@ -234,6 +235,7 @@ func drawTrack(ctx events.EventContext, hasFocus bool) bool {
 	rl.DrawText(fmt.Sprintf("TRK: %02d/%02d", ui.TrackId, len(CurrentProject.Tracks)-1), 10, bottomOffset, 10, rl.Maroon)
 	rl.DrawText(fmt.Sprintf("PHR: %02d/%02d", ui.PhraseId, len(currentTrack.Phrases[currentTrack.CurrentSection])-1), 80, bottomOffset, 10, rl.Maroon)
 	rl.DrawText(fmt.Sprintf("ROW: %02d", currentTrack.Current().CurrentStep), 200, bottomOffset, 10, rl.Maroon)
+	ui.FlushText()
 
 	return false
 }

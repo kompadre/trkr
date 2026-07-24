@@ -1,13 +1,14 @@
 package audio
 
 import (
+	rl "github.com/gen2brain/raylib-go/raylib"
 	"math"
 	"math/rand"
 	. "trkr"
+	"trkr/internal/audio/effects"
+	"trkr/internal/audio/miniaudio"
 	"trkr/internal/audio/perc"
 	ev "trkr/internal/events"
-
-	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 type EnvelopeState uint8
@@ -81,22 +82,18 @@ var activeVoices uint8
 var freeVoices chan *Voice
 var CommandQueue = make(chan VoiceCommand, 64)
 var saturator func([]float32, float32)
-var filter func([]float32)
+var Filter *effects.Filter
 var masterRunningDry = 0
 
 func InitVoiceMasterStream() {
-	masterStream = rl.LoadAudioStream(VoiceSampleRate, 32, 1)
-	rl.SetMasterVolume(1.0)
-	rl.SetAudioStreamVolume(masterStream, 1.0)
 	ev.RegisterCallback(ev.EventKindAudioUpdate, MasterUpdate, 1)
 	saturator = NewSaturator()
-	filter = NewLowPassFilter()
+	// filter = NewLowPassFilter()
 	voicePool = make([]*Voice, VoicePoolSize)
 	for i := range VoicePoolSize {
 		voicePool[i] = &Voice{Id: uint8(i + 1), Volume: 1.0, _phase: rand.Float64()}
 	}
 	isMasterInitialized = true
-	rl.PlayAudioStream(masterStream)
 }
 
 func FindFreeVoice(columnId uint8, trackId uint8, instrumentId uint8) *Voice {
@@ -300,7 +297,13 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 		case SampleSourceTypeFmPickup:
 			sample = float32(bufferMsfa[i]) / 32767.5
 		case SampleSourceTypePerc:
-			sample = bufferPerc[i]
+			if waveLenInt > i {
+				sample = bufferPerc[i]
+			} else {
+				sample = 0.0
+				Logf("Releasing perc...")
+				v.Envelope.State = EnvIdle
+			}
 		case SampleSourceTypeWavefile:
 			if !v.Instrument.SamplesLoaded {
 				Logf("Samples not loaded, returning 0.0 for instrument %d!\n", v.Instrument.Id)
@@ -423,7 +426,10 @@ CommandLoop:
 }
 
 func MasterUpdate(ctx ev.EventContext) bool {
-	for rl.IsAudioStreamProcessed(masterStream) {
+	if Filter == nil {
+		Filter = effects.NewFilter(effects.FilterTypeLPF, 1000.0, 0.707, 48000)
+	}
+	for miniaudio.AvailableWriteSpace() >= VoiceBufferSize {
 
 		MasterQueueCommands()
 
@@ -440,7 +446,7 @@ func MasterUpdate(ctx ev.EventContext) bool {
 
 		if currentHeadroomCount < 1 {
 			Logf("Exiting early because nobody's playing.\n")
-			rl.UpdateAudioStream(masterStream, masterBuffer[:])
+			miniaudio.WriteChannels(masterBuffer[:], masterBuffer[:])
 			continue
 		}
 
@@ -452,19 +458,10 @@ func MasterUpdate(ctx ev.EventContext) bool {
 			}
 			maxAbs = max(maxAbs, v.UpdateVoice(masterBuffer[:], headroomScale))
 		}
-
-		doubleChannel := make([]float32, len(masterBuffer)*2)
-		for i := range masterBuffer {
-			doubleChannel[i*2], doubleChannel[i*2+1] = masterBuffer[i], masterBuffer[i]
+		if Filter.Type != effects.FilterTypeNone {
+			Filter.Process(masterBuffer[:])
 		}
-		// saturator(masterBuffer[:], maxAbs)
-		// filter(masterBuffer[:])
-		// for i := 0; i < len(masterBuffer); i += 2 {
-		// 	masterBuffer32x2[i] = masterBuffer[i]
-		// 	masterBuffer32x2[i+1] = masterBuffer[i]
-		// }
-
-		rl.UpdateAudioStream(masterStream, masterBuffer[:])
+		miniaudio.WriteChannels(masterBuffer[:], masterBuffer[:])
 	}
 	return true
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 	. "trkr"
 	"trkr/internal/audio"
+	"trkr/internal/audio/effects"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
 )
@@ -77,7 +78,7 @@ func NewPlayhead(currentSection uint8) Playhead {
 func Stop() {
 	fmt.Printf("Player is stopping...\n")
 	if IsPlaying {
-		audio.PlaySoundMulti(0, 0, NoteCut, 0, 0, 0.0, 0.0)
+		audio.PlaySoundMulti(0, 0, NoteCut, 0, 0, 0.0, 0.0, 0.0)
 		audio.StopFm()
 		StopChannel <- true
 		ev.ClearCallbacks(ev.EventKindTick)
@@ -150,7 +151,18 @@ func Play() {
 					if sampleSource == SampleSourceTypePerc {
 						Logf("Perc on %d.\n", Head.Section.TotalRowsCounter)
 					}
-					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume)
+					velocity := 1.0
+					if phrase.Steps[phraseRuntime.RowCounter].Velocities[columnId] > 0 {
+						velocity = Clamp(float64(phrase.Steps[phraseRuntime.RowCounter].Velocities[columnId])/100.0, 0.0, 1.0)
+					}
+					audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume*velocity, 0.0)
+					/*
+						if trackId == 0 {
+							audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume*velocity*0.75, 0.25)
+							audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume*velocity*0.5, 0.5)
+							audio.PlaySoundMulti(uint8(columnId), uint8(trackId), note, track.InstrumentId, sampleSource, 255, track.Volume*velocity*0.25, 0.75)
+						}
+					*/
 					// Logf("Queued %d %d %v %d %s", columnId, trackId, note, track.InstrumentId, sampleSource.UiString())
 				}
 			}
@@ -172,6 +184,11 @@ func Play() {
 			}
 			phrase.CurrentStep = phraseRuntime.RowCounter
 		}
+		if audio.Filter.Type != effects.FilterTypeHPF {
+			audio.Filter.Type = effects.FilterTypeHPF
+		} else {
+			audio.Filter.Type = effects.FilterTypeNone
+		}
 
 		Head.Section.TotalRowsCounter++
 		if Head.Section.TotalRowsCounter >= int32(CurrentProject.Sections[Head.CurrentSectionId].Rows) {
@@ -185,7 +202,7 @@ func Play() {
 		return true
 	}, uiElem.ID)
 
-	var tickerPause time.Duration = time.Minute / time.Duration((BeatsPerMinute)*4.0)
+	audio.TickDuration = time.Minute / time.Duration((BeatsPerMinute)*4.0)
 	IsPlaying = true
 
 	var tickCount int64 = 0
@@ -200,7 +217,7 @@ func Play() {
 
 	tickStart = time.Now()
 	firstStart := tickStart
-	targetSleep = tickerPause
+	targetSleep = audio.TickDuration
 	for {
 		ev.Trigger(ev.EventKindTick, tickContext)
 		targetSleep -= time.Since(tickStart)
@@ -221,8 +238,8 @@ func Play() {
 		}
 
 		tickCount++
-		targetSleep = (tickerPause - sleepDrift)
-		tickStart = tickStart.Add(tickerPause)
+		targetSleep = (audio.TickDuration - sleepDrift)
+		tickStart = tickStart.Add(audio.TickDuration)
 		EffectiveBpm = float64(tickCount) / (time.Since(firstStart).Minutes() * 4)
 	}
 }

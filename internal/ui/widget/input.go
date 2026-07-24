@@ -28,12 +28,9 @@ type Input struct {
 }
 
 func NewInput(label string, relativeLeft int32, relativeTop int32, width int32, height int32, action ui.Action, parent *ui.Element) *Input {
-	fmt.Printf("Creating input l:%d, t:%d, w:%d, h:%d.\n", relativeLeft, relativeTop, width, height)
 	in := &Input{Label: label, Action: action, ValueStr: " ", Value: [8]rune{' '}}
-
-	// func NewElement(left int32, top int32, width int32, height int32, core ElementCore, parent *Element) *Element {
 	el := ui.NewElement(relativeLeft, relativeTop, width, height, in, parent)
-	fmt.Printf("Element is %v\n", el)
+	el.Col = [4]int{12, 12, 12, 12}
 	return in
 }
 
@@ -105,6 +102,7 @@ func (in *Input) HandleInputNumber(input *ev.InputSnapshot, el *ui.Element) bool
 }
 
 func (in *Input) HandleInputText(input *ev.InputSnapshot, el *ui.Element) bool {
+	// fmt.Printf("Handling input  text.\n")
 	if input.Down(ev.InputKindDir) {
 		if input.Down(ev.InputKindUp) {
 			in.Value[in.FocusedChar]++
@@ -152,38 +150,37 @@ func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
 		return false
 	}
 
-	if rec, v := p.Laid.Col(12, 12, 12, 12); v {
-		// bgcolor := ui.InputBg1
-		fgcolor := ui.WindowFg1
-		preffix := ""
-		if hasFocus {
-			preffix = ">"
+	// bgcolor := ui.InputBg1
+	fgcolor := ui.WindowFg1
+	preffix := ""
+	if hasFocus {
+		preffix = ">"
+	}
+	rec := p.Laid.Bounds()
+	p.Laid.SetRowHeight(20)
+	ui.DrawText(preffix+in.Label, int32(rec.X), int32(rec.Y+2), 20, fgcolor)
+	rl.DrawRectangleLinesEx(rec, 2, rl.Red)
+
+	var extraLeft int32 = 65
+	var underLeft int32
+	for i := range 8 {
+		if in.Value[i] == 'I' {
+			extraLeft += 0
+		}
+		ui.DrawText(string(in.Value[i]), int32(rec.X)+extraLeft, int32(rec.Y+2), 20, fgcolor)
+		if i == int(in.FocusedChar) {
+			underLeft = extraLeft
 		}
 
-		ui.DrawText(preffix+in.Label, int32(rec.X), int32(rec.Y+2), 20, fgcolor)
-		// rl.DrawRectangleRec(rec, bgcolor)
-		var extraLeft int32 = 65
-		var underLeft int32
-		for i := range 8 {
-			if in.Value[i] == 'I' {
-				extraLeft += 0
-			}
-			ui.DrawText(string(in.Value[i]), int32(rec.X)+extraLeft, int32(rec.Y+2), 20, fgcolor)
-			if i == int(in.FocusedChar) {
-				underLeft = extraLeft
-			}
+		extraLeft += 10
 
-			extraLeft += 10
-
-			if in.Value[i] == 0 {
-				break
-			}
+		if in.Value[i] == 0 {
+			break
 		}
-		// ui.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
-		if hasFocus {
-			rl.DrawText("_", int32(rec.X)+underLeft, int32(rec.Y+6), 20, fgcolor)
-		}
-
+	}
+	// ui.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
+	if hasFocus {
+		rl.DrawText("_", int32(rec.X)+underLeft, int32(rec.Y+6), 20, fgcolor)
 	}
 
 	return false

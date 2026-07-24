@@ -169,6 +169,7 @@ func main() {
 		if haveFocus || redrawFrames > 0 || player.IsPlaying {
 			rl.ClearBackground(ui.WindowBg5)
 			//			rl.DrawTexture(bg, 0, 0, rl.White)
+			laid.BeginFrame(rl.GetScreenWidth(), rl.GetScreenHeight())
 			laid.PushContext(rl.NewRectangle(0, 0, float32(rl.GetScreenWidth()), float32(rl.GetScreenHeight())))
 
 			if ev.Trigger(ev.EventKindUpdate, updateCtx) {
