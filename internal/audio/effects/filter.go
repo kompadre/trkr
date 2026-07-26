@@ -155,8 +155,19 @@ func (f *Filter) Reset() {
 func (f *Filter) ProcessSample(sample float32) float32 {
 	x := float64(sample)
 	y := f.b0*x + f.s1
+
 	f.s1 = f.b1*x - f.a1*y + f.s2
 	f.s2 = f.b2*x - f.a2*y
+
+	// --- DENORMAL / LIMIT CYCLE FLUSH ---
+	// Math.Abs threshold check (e.g. 1e-15 for float64 precision)
+	if f.s1 > -1e-15 && f.s1 < 1e-15 {
+		f.s1 = 0
+	}
+	if f.s2 > -1e-15 && f.s2 < 1e-15 {
+		f.s2 = 0
+	}
+
 	return float32(y)
 }
 

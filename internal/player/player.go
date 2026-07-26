@@ -5,7 +5,6 @@ import (
 	"time"
 	. "trkr"
 	"trkr/internal/audio"
-	"trkr/internal/audio/effects"
 	ev "trkr/internal/events"
 	"trkr/internal/ui"
 )
@@ -183,11 +182,6 @@ func Play() {
 				phraseRuntime.RowCounter = 0
 			}
 			phrase.CurrentStep = phraseRuntime.RowCounter
-		}
-		if audio.Filter.Type != effects.FilterTypeHPF {
-			audio.Filter.Type = effects.FilterTypeHPF
-		} else {
-			audio.Filter.Type = effects.FilterTypeNone
 		}
 
 		Head.Section.TotalRowsCounter++

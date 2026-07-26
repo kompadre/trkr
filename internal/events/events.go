@@ -158,18 +158,19 @@ func RegisterCallback(eventKind EventKind, callback EventCallback, ID uint16) {
 		EventMap[eventKind] = eventQueue
 
 	} else {
+		if _, exists := eventQueue.RegistredCallbacks[ID]; !exists {
+			eventQueue.CallbackKeys = append(eventQueue.CallbackKeys, ID)
+			slices.Sort(eventQueue.CallbackKeys)
+		}
 		eventQueue.RegistredCallbacks[ID] = callback
-		eventQueue.CallbackKeys = append(eventQueue.CallbackKeys, ID)
-		slices.Sort(eventQueue.CallbackKeys)
 	}
 }
 
 func ClearCallbacks(eventKind EventKind) {
-	_, ok := EventMap[eventKind]
+	ev, ok := EventMap[eventKind]
 	if ok {
-		for id := range EventMap[eventKind].RegistredCallbacks {
-			delete(EventMap[eventKind].RegistredCallbacks, id)
-		}
+		ev.RegistredCallbacks = make(map[uint16]EventCallback)
+		ev.CallbackKeys = nil
 	}
 }
 

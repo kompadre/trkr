@@ -83,6 +83,7 @@ var freeVoices chan *Voice
 var CommandQueue = make(chan VoiceCommand, 64)
 var saturator func([]float32, float32)
 var Filter *effects.Filter
+var Delay *effects.Delay
 var masterRunningDry = 0
 
 func InitVoiceMasterStream() {
@@ -94,6 +95,19 @@ func InitVoiceMasterStream() {
 		voicePool[i] = &Voice{Id: uint8(i + 1), Volume: 1.0, _phase: rand.Float64()}
 	}
 	isMasterInitialized = true
+
+	// Warm tape-style delay settings
+	Delay = effects.NewDelay(
+		60/105, // 160ms delay time
+		0.28,   // 28% feedback
+		0.45,   // 15% wet mix
+		48000.0,
+	)
+	Filter = effects.NewFilter(effects.FilterTypeLPF, 2500.0, 0, 48000)
+	/*
+		Delay = effects.NewDelay(0.25, 0.4, 0.0, 48000)
+	*/
+
 }
 
 func FindFreeVoice(columnId uint8, trackId uint8, instrumentId uint8) *Voice {
@@ -426,9 +440,6 @@ CommandLoop:
 }
 
 func MasterUpdate(ctx ev.EventContext) bool {
-	if Filter == nil {
-		Filter = effects.NewFilter(effects.FilterTypeLPF, 1000.0, 0.707, 48000)
-	}
 	for miniaudio.AvailableWriteSpace() >= VoiceBufferSize {
 
 		MasterQueueCommands()
@@ -458,8 +469,11 @@ func MasterUpdate(ctx ev.EventContext) bool {
 			}
 			maxAbs = max(maxAbs, v.UpdateVoice(masterBuffer[:], headroomScale))
 		}
+		if Delay != nil && Delay.Mix > 0 {
+			//			Delay.Process(masterBuffer[:])
+		}
 		if Filter.Type != effects.FilterTypeNone {
-			Filter.Process(masterBuffer[:])
+			//		Filter.Process(masterBuffer[:])
 		}
 		miniaudio.WriteChannels(masterBuffer[:], masterBuffer[:])
 	}

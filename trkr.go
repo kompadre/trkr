@@ -184,6 +184,9 @@ type Track struct {
 }
 
 func NewTrack(p *Project) *Track {
+	if len(p.Sections) == 0 {
+		p.Sections = []Section{{Id: 0, Name: "INTRO", Rows: 224}, {Id: 1, Name: "DEV 1", Rows: 64}}
+	}
 	result := Track{}
 	result.Id = uint8(len(p.Tracks))
 	result.Volume = 1.0
@@ -225,7 +228,17 @@ func (t *Track) Current() *Phrase {
 	if len(t.Phrases) == 0 {
 		return nil
 	}
-	return t.Phrases[t.CurrentSection][t.CurrentPhrase]
+	if len(t.PhraseIds[t.CurrentSection]) > 0 {
+		idx := Clamp(t.CurrentPhrase, 0, len(t.PhraseIds[t.CurrentSection])-1)
+		phraseId := t.PhraseIds[t.CurrentSection][idx]
+		if int(phraseId) < len(CurrentProject.Phrases) {
+			return &CurrentProject.Phrases[phraseId]
+		}
+	}
+	if len(t.Phrases[t.CurrentSection]) > 0 {
+		return t.Phrases[t.CurrentSection][t.CurrentPhrase]
+	}
+	return nil
 }
 
 func (t *Track) Cleanup() {

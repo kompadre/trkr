@@ -168,12 +168,16 @@ func StopFm() {
 	for k := range synthPlayingNotes {
 		StopSoundFm(k.ColumnId, k.TrackId)
 	}
-	// Drain synth's samples
-	var drainBuffer [512]int16
-	for range 512 {
-		SynthInstance.GetSamples(drainBuffer[:])
+	if SynthInstance != nil {
+		// Drain synth's samples
+		var drainBuffer [512]int16
+		for range 512 {
+			SynthInstance.GetSamples(drainBuffer[:])
+		}
 	}
-	VoiceFm.Envelope.State = EnvIdle
+	if VoiceFm != nil {
+		VoiceFm.Envelope.State = EnvIdle
+	}
 }
 
 func PlaySoundFm(columnId uint8, trackId uint8, note Note, velocity uint8) {

@@ -194,7 +194,7 @@ func main() {
 func demoProject(currentProject *Project) {
 	Logf("Creating a new demo project.\n")
 	currentProject.Filename = "autosave.json"
-	currentProject.Sections = []Section{{Id: 0, Name: "INTRO"}, {Id: 1, Name: "DEVELOP"}}
+	currentProject.Sections = []Section{{Id: 0, Name: "INTRO", Rows: 224}, {Id: 1, Name: "DEVELOP", Rows: 64}}
 	currentPhrase := NewPhrase(currentProject)
 	instrument := NewInstrument(currentProject)
 	instrument.SampleSourceType = SampleSourceTypeWavefile

@@ -50,7 +50,23 @@ func GetTrackElement() *ui.Element {
 func CurrentTrack() *Track {
 	return &CurrentProject.Tracks[Clamp(ui.TrackId, 0, len(CurrentProject.Tracks)-1)]
 }
+
 func CurrentPhrase() *Phrase {
+	currentTrack := CurrentTrack()
+	if len(currentTrack.PhraseIds[ui.SectionId]) > 0 {
+		idx := Clamp(ui.PhraseId, 0, len(currentTrack.PhraseIds[ui.SectionId])-1)
+		phraseId := currentTrack.PhraseIds[ui.SectionId][idx]
+		if int(phraseId) < len(CurrentProject.Phrases) {
+			return &CurrentProject.Phrases[phraseId]
+		}
+	}
+	if len(currentTrack.Phrases[ui.SectionId]) > 0 {
+		return currentTrack.Phrases[ui.SectionId][Clamp(ui.PhraseId, 0, len(currentTrack.Phrases[ui.SectionId])-1)]
+	}
+	return &CurrentProject.Phrases[0]
+}
+
+func _CurrentPhrase() *Phrase {
 	currentTrack := CurrentTrack()
 	return currentTrack.Phrases[ui.SectionId][ui.PhraseId]
 }
