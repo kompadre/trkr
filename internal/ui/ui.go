@@ -36,14 +36,14 @@ type ElementCore interface {
 	Show()
 	Hide()
 	HandleInput(*ev.InputSnapshot, *Element) bool
-	Draw(ev.EventContext, bool) bool
+	Draw(ev.EventContext, bool, bool) bool
 }
 
 type ElementCoreInstance struct {
 	ShowCallback        func()
 	HideCallback        func()
 	HandleInputCallback func(*ev.InputSnapshot, *Element) bool
-	DrawCallback        func(ev.EventContext, bool) bool
+	DrawCallback        func(ev.EventContext, bool, bool) bool
 }
 
 type ElementDrawPayload struct {
@@ -53,7 +53,7 @@ type ElementDrawPayload struct {
 	Top     int32
 }
 
-func NewElementCoreInstance(show func(), hide func(), handleInput func(*ev.InputSnapshot, *Element) bool, draw func(ev.EventContext, bool) bool) *ElementCoreInstance {
+func NewElementCoreInstance(show func(), hide func(), handleInput func(*ev.InputSnapshot, *Element) bool, draw func(ev.EventContext, bool, bool) bool) *ElementCoreInstance {
 	return &ElementCoreInstance{ShowCallback: show, HideCallback: hide, HandleInputCallback: handleInput, DrawCallback: draw}
 }
 
@@ -76,9 +76,9 @@ func (ec *ElementCoreInstance) HandleInput(input *ev.InputSnapshot, el *Element)
 	return false
 }
 
-func (ec *ElementCoreInstance) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (ec *ElementCoreInstance) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	if ec.DrawCallback != nil {
-		return ec.DrawCallback(ctx, hasFocus)
+		return ec.DrawCallback(ctx, hasFocus, isHighlighted)
 	}
 	return false
 }
@@ -95,9 +95,11 @@ type Element struct {
 	Parent            *Element
 	Children          []*Element
 	FocusedChild      *Element
+	HighlightedChild  *Element
 	FocusOutAfterLast bool
 	Col               [4]int
 	Visible           bool
+	IsModal           bool
 	Removed           bool
 }
 
@@ -112,6 +114,8 @@ var RootElement *Element
 var TrackDialog *Element
 var SongDialog *Element
 var SettingsDialog *Element
+var InstrumentDialog *Element
+var PatchBrowserDialog *Element
 
 func NewElement(left int32, top int32, width int32, height int32, core ElementCore, parent *Element) *Element {
 	rect := rl.Rectangle{X: float32(left), Y: float32(top), Width: float32(width), Height: float32(height)}
@@ -126,37 +130,91 @@ func NewElement(left int32, top int32, width int32, height int32, core ElementCo
 	return elem
 }
 
+func NewRow(height int32, parent *Element) *Element {
+	e := NewElement(0, 0, 0, height, nil, parent)
+	e.Col = [4]int{12, 12, 12, 12}
+	e.FocusOutAfterLast = true
+	return e
+}
+
 func (e *Element) HandleInput(input *ev.InputSnapshot) bool {
+	// 0. Priority: Modal children capture all input for their parent's entire subtree
+	for _, child := range e.Children {
+		if child.Visible && child.IsModal {
+			return child.HandleInput(input)
+		}
+	}
+
+	// 1. If we have an active (focused) child, it gets priority
 	if e.FocusedChild != nil && e.FocusedChild.Visible {
 		if e.FocusedChild.HandleInput(input) {
 			return true
 		}
-	} else if e.FocusedChild != nil && !e.FocusedChild.Visible {
-		e.FocusJump(0)
-		return false
-	}
-
-	if e.Core == nil {
-		if input.Down(ev.InputKindDown) || input.Down(ev.InputKindRight) {
-			e.FocusJump(1)
-			return true
-		} else if input.Down(ev.InputKindUp) || input.Down(ev.InputKindLeft) {
-			e.FocusJump(-1)
+		// If child returned false, it means it wants to be deactivated.
+		// Top-level views focused on RootElement should never be automatically deactivated.
+		if e != RootElement {
+			e.FocusedChild = nil
 			return true
 		}
 		return false
 	}
-	return e.Core.HandleInput(input, e)
+
+	// 2. Leaf Core Elements: Widgets and monolithic views that handle everything in their Core.
+	// They have no children, so they do not participate in container-level navigation.
+	if e.Core != nil && len(e.Children) == 0 {
+		return e.Core.HandleInput(input, e)
+	}
+
+	// 3. Container Elements: They have children, so their primary duty is navigation and focusing.
+	// If a custom Core handler is present on a container, let it intercept global events first.
+	if e.Core != nil {
+		if e.Core.HandleInput(input, e) {
+			return true
+		}
+	}
+
+	// 3.5. Delegate input down to the highlighted child if it is also a container.
+	// This enables seamless navigation inside nested layout rows/containers.
+	if e.HighlightedChild != nil && e.HighlightedChild.Visible && len(e.HighlightedChild.Children) > 0 {
+		if e.HighlightedChild.HandleInput(input) {
+			return true
+		}
+	}
+
+	// 4. Container-level navigation & activation fallback
+	if input.Tick(ev.InputKindA) == 1 {
+		if e.HighlightedChild != nil && e.HighlightedChild.Visible {
+			e.FocusedChild = e.HighlightedChild
+			if e.Parent != nil {
+				e.Parent.FocusedChild = e
+			}
+			return true
+		}
+	}
+
+	if input.Tick(ev.InputKindB) == 1 {
+		return false // Signals parent to deactivate us
+	}
+
+	if input.Down(ev.InputKindDown) || input.Down(ev.InputKindRight) {
+		e.HighlightJump(1)
+		return true
+	} else if input.Down(ev.InputKindUp) || input.Down(ev.InputKindLeft) {
+		e.HighlightJump(-1)
+		return true
+	}
+
+	return false
 }
 
-func (e *Element) FocusJump(offset int) {
+func (e *Element) HighlightJump(offset int) {
 	numChildren := len(e.Children)
 	if numChildren == 0 {
-		e.FocusedChild = nil
+		e.HighlightedChild = nil
 		return
 	}
-	if !e.Visible && e.HasFocus() && e.Parent != nil {
-		e.Parent.FocusJump(0)
+	if !e.Visible && e.IsHighlighted() && e.Parent != nil {
+		e.Parent.HighlightJump(0)
 		return
 	}
 
@@ -165,7 +223,7 @@ func (e *Element) FocusJump(offset int) {
 	numVisibleChildren := 0
 	var firstVisibileChild *Element
 	for i, child := range e.Children {
-		if child == e.FocusedChild {
+		if child == e.HighlightedChild {
 			currentIndex = i
 		}
 		if child.Visible {
@@ -177,21 +235,29 @@ func (e *Element) FocusJump(offset int) {
 		}
 	}
 
-	// If all children are invisible, clear focus immediately and bail
+	// If all children are invisible, clear highlight immediately and bail
 	if numVisibleChildren == 0 {
-		fmt.Println("Container has no visible children. Clearing focus.")
-		e.FocusedChild = nil
-		return
-	} else if numVisibleChildren == 1 { // Is the only visible child
-		e.FocusedChild = e.Children[lastVisibleChildIdx]
-		fmt.Println("We have only one visible child.")
+		fmt.Println("Container has no visible children. Clearing highlight.")
+		e.HighlightedChild = nil
 		return
 	}
 
-	if offset == 1 && lastVisibleChildIdx == currentIndex && e.FocusOutAfterLast {
+	if offset == 1 && lastVisibleChildIdx == currentIndex && e.FocusOutAfterLast && e.Parent != nil {
 		// If we ask for the next child but we already at the last visible one.
-		e.FocusedChild = firstVisibileChild
-		e.Parent.FocusJump(1)
+		e.HighlightedChild = firstVisibileChild
+		e.Parent.HighlightJump(1)
+		return
+	}
+
+	if offset == -1 && (currentIndex == -1 || e.Children[currentIndex] == firstVisibileChild) && e.FocusOutAfterLast && e.Parent != nil {
+		// If we ask for the previous child but we already at the first visible one.
+		e.Parent.HighlightJump(-1)
+		return
+	}
+
+	if numVisibleChildren == 1 { // Is the only visible child
+		e.HighlightedChild = e.Children[lastVisibleChildIdx]
+		return
 	}
 
 	if currentIndex == -1 {
@@ -203,12 +269,24 @@ func (e *Element) FocusJump(offset int) {
 		newIndex += numChildren
 	}
 
-	for !e.Children[newIndex].Visible {
-		newIndex = (newIndex + 1) % numChildren
+	searchDir := offset
+	if searchDir == 0 {
+		searchDir = 1
 	}
 
-	fmt.Printf("Focusing on child %d (ID:%d).\n", newIndex, e.Children[newIndex].ID)
-	e.FocusedChild = e.Children[newIndex]
+	for !e.Children[newIndex].Visible {
+		newIndex = (newIndex + searchDir) % numChildren
+		if newIndex < 0 {
+			newIndex += numChildren
+		}
+	}
+
+	fmt.Printf("Highlighting child %d (ID:%d).\n", newIndex, e.Children[newIndex].ID)
+	e.HighlightedChild = e.Children[newIndex]
+}
+
+func (e *Element) IsHighlighted() bool {
+	return e.Parent != nil && e.Parent.HighlightedChild == e
 }
 
 func (e *Element) HasFocus() bool {
@@ -217,9 +295,10 @@ func (e *Element) HasFocus() bool {
 
 func (e *Element) SetFocus(focusedElem *Element) {
 	e.FocusedChild = focusedElem
+	e.HighlightedChild = focusedElem
 }
 
-func (e *Element) Draw(ctx ev.EventContext) bool {
+func (e *Element) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	laid := ctx.EventPayload.(*ElementDrawPayload).Laid
 	if e.IsAnchor {
 		laid.PushGreedyContext(e.Rectangle)
@@ -241,13 +320,21 @@ func (e *Element) Draw(ctx ev.EventContext) bool {
 	if e.ID > 0 {
 		laid.SetCachedBounds(e.ID, e.ComputedBounds)
 	}
-	if e.ID == 777 {
-		rl.DrawRectangleLinesEx(e.ComputedBounds, 3, rl.Red)
+
+	if !e.IsAnchor {
+		laid.SetRowHeight(e.Rectangle.Height)
+	}
+	laid.Pad(float32(e.LeftPadding), float32(e.TopPadding))
+
+	// Priority: If any child is modal and visible, it's the ONLY thing we draw
+	for _, child := range e.Children {
+		if child.Visible && child.IsModal {
+			ctx.EventPayload.(*ElementDrawPayload).Element = child
+			return child.Draw(ctx, hasFocus && child == e.FocusedChild, isHighlighted && child == e.HighlightedChild)
+		}
 	}
 
-	laid.SetRowHeight(e.Rectangle.Height)
-	laid.Pad(float32(e.LeftPadding), float32(e.TopPadding))
-	if e.Core != nil && e.Core.Draw(ctx, e.HasFocus()) {
+	if e.Core != nil && e.Core.Draw(ctx, hasFocus, isHighlighted) {
 		return true
 	}
 	//	laid.Context().CursorY += e.Rectangle.Height
@@ -255,7 +342,7 @@ func (e *Element) Draw(ctx ev.EventContext) bool {
 	for i := range e.Children {
 		if e.Children[i].Visible {
 			ctx.EventPayload.(*ElementDrawPayload).Element = e.Children[i]
-			if e.Children[i].Draw(ctx) {
+			if e.Children[i].Draw(ctx, hasFocus && e.Children[i] == e.FocusedChild, isHighlighted && e.Children[i] == e.HighlightedChild) {
 				return true
 			}
 			if e.IsAnchor {
@@ -278,11 +365,11 @@ func (el *Element) DrawContainer(ctx ev.EventContext) {
 	rl.DrawRectangleLinesEx(rec, 2, rl.Black)
 }
 
-func (e *Element) Add(c *Element, SetFocus bool) {
+func (e *Element) Add(c *Element, setInitialFocus bool) {
 	fmt.Printf("Adding %v to %v.\n", c, e)
 	e.Children = append(e.Children, c)
-	if SetFocus {
-		e.FocusedChild = c
+	if setInitialFocus {
+		e.HighlightedChild = c
 	}
 }
 

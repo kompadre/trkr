@@ -17,6 +17,8 @@
 #ifndef __PITCHENV_H
 #define __PITCHENV_H
 
+#include <cstdint>
+
 // Computation of the DX7 pitch envelope
 
 class PitchEnv {

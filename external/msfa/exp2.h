@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+
 class Exp2 {
  public:
   Exp2();

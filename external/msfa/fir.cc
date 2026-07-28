@@ -22,7 +22,12 @@
 #include "aligned_buf.h"
 #include "fir.h"
 
-#ifdef __ANDROID_API__
+#if defined(_WIN32)
+#include <malloc.h>
+void *malloc_aligned(size_t alignment, size_t nbytes) {
+  return _aligned_malloc(nbytes, alignment);
+}
+#elif defined(__ANDROID_API__)
 void *malloc_aligned(size_t alignment, size_t nbytes) {
   return memalign(alignment, nbytes);
 }

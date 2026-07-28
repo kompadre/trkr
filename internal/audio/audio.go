@@ -5,15 +5,17 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 
 	//	"math/rand"
 	//	"time"
-	path "path"
+	"path"
 	. "trkr"
 	"trkr/external/msfa"
+	"trkr/internal/audio/fm"
 	"trkr/internal/audio/miniaudio"
 )
 
@@ -30,11 +32,22 @@ func Init() {
 		CurrentProject.FmPatchName = "./assets/syx/Dexed_01.syx"
 	}
 	SynthInstance = msfa.NewSynth(VoiceSampleRate)
-	SynthInstance.LoadPatch(CurrentProject.FmPatchName)
+	SetAudioSynthInstance(SynthInstance)
+	
+	sanitized := fm.SanitizeFilename(CurrentProject.Filename)
+	bankPath := sanitized + ".syx"
+	if _, err := os.Stat(bankPath); err == nil {
+		fmt.Printf("Loading project bank: %s\n", bankPath)
+		SynthInstance.LoadPatch(bankPath)
+	} else {
+		SynthInstance.LoadPatch(CurrentProject.FmPatchName)
+	}
+
 	synthPlayingNotes = make(map[NoteGridCoord]Note)
 	for _, t := range CurrentProject.Tracks {
 		if t.Instrument.SampleSourceType == SampleSourceTypeFm {
 			SynthInstance.ChangeProgram(t.Id, t.Instrument.Program)
+			msfa.ChangeVolume(t.Id, int32(Clamp(256*t.Volume, 0, 256)))
 		}
 	}
 	PlayFmPickup()
@@ -210,22 +223,21 @@ func Cleanup() {
 	// synth.Free()
 }
 
-func waveHeader(buf *bytes.Buffer, nSamples uint32, sampleRate uint32) {
+func WaveHeader(buf *bytes.Buffer, nSamples uint32, sampleRate uint32) {
 	// 1. Write the standard RIFF/WAVE header fields
 	buf.Write([]byte("RIFF"))                                   // ChunkID
-	binary.Write(buf, binary.LittleEndian, uint32(36+nSamples)) // ChunkSize
+	binary.Write(buf, binary.LittleEndian, uint32(36+nSamples*2)) // ChunkSize (nSamples * 2 bytes for 16-bit)
 	buf.Write([]byte("WAVE"))                                   // Format
 	buf.Write([]byte("fmt "))                                   // Subchunk1ID
 	binary.Write(buf, binary.LittleEndian, uint32(16))          // Subchunk1Size (16 for PCM)
 	binary.Write(buf, binary.LittleEndian, uint16(1))           // AudioFormat (1 for PCM)
 	binary.Write(buf, binary.LittleEndian, uint16(1))           // NumChannels (1 = Mono)
 	binary.Write(buf, binary.LittleEndian, sampleRate)          // SampleRate
-	binary.Write(buf, binary.LittleEndian, sampleRate*1)        // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
-	binary.Write(buf, binary.LittleEndian, uint16(1))           // BlockAlign (NumChannels * BitsPerSample/8)
-	binary.Write(buf, binary.LittleEndian, uint16(8))           // BitsPerSample (8 bits)
+	binary.Write(buf, binary.LittleEndian, sampleRate*2)        // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
+	binary.Write(buf, binary.LittleEndian, uint16(2))           // BlockAlign (NumChannels * BitsPerSample/8)
+	binary.Write(buf, binary.LittleEndian, uint16(16))          // BitsPerSample (16 bits)
 	buf.Write([]byte("data"))                                   // Subchunk2ID
-	binary.Write(buf, binary.LittleEndian, nSamples)            // Subchunk2Size
-
+	binary.Write(buf, binary.LittleEndian, nSamples*2)          // Subchunk2Size (nSamples * 2 bytes)
 }
 
 func DemoNotes() {

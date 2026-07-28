@@ -21,6 +21,7 @@ type SongView struct {
 func CreateSongView(parent *ui.Element) *ui.Element {
 	core := &SongView{}
 	ui.SongDialog = ui.NewElement(0, 0, int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight), core, parent)
+	ui.SongDialog.Name = "Song"
 	ui.SongDialog.Visible = false
 	lastStart := 0
 	for i := range songColumnStarts {
@@ -38,7 +39,7 @@ func CreateSongView(parent *ui.Element) *ui.Element {
 
 func (pv *SongView) Show() {}
 func (pv *SongView) Hide() {}
-func (pv *SongView) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (pv *SongView) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	currentTrack := CurrentProject.Tracks[ui.TrackId]
 	uiElem := ctx.EventPayload.(*ui.ElementDrawPayload).Element
 	if !uiElem.Visible {
@@ -63,7 +64,11 @@ func (pv *SongView) Draw(ctx ev.EventContext, hasFocus bool) bool {
 	for i := range CurrentProject.Tracks {
 		verticalAnchor = 1 - firstVerticalItem
 		rowsCounter := 0
-		for _, p := range CurrentProject.Tracks[i].Phrases[ui.SectionId] {
+		for _, phraseId := range CurrentProject.Tracks[i].PhraseIds[ui.SectionId] {
+			if int(phraseId) >= len(CurrentProject.Phrases) {
+				continue
+			}
+			p := &CurrentProject.Phrases[phraseId]
 			rowsCounter += int(p.Rows())
 			ui.DrawText(fmt.Sprintf("%02d:%02d:%03d", p.ID, p.Rows(), rowsCounter),
 				int32(songColumnStarts[Clamp(i+1, 0, len(songColumnStarts)-1)]),
@@ -88,7 +93,7 @@ func (pv *SongView) Draw(ctx ev.EventContext, hasFocus bool) bool {
 		FontSize, RGBA(0, 255, 0, 64))
 
 	rl.DrawText(fmt.Sprintf("TRK: %02d/%02d", ui.TrackId, len(CurrentProject.Tracks)-1), 10, bottomOffset, 10, rl.Maroon)
-	rl.DrawText(fmt.Sprintf("PHR: %02d/%02d", ui.PhraseId, len(currentTrack.Phrases)-1), 80, bottomOffset, 10, rl.Maroon)
+	rl.DrawText(fmt.Sprintf("PHR: %02d/%02d", ui.PhraseId, max(0, len(currentTrack.PhraseIds[ui.SectionId])-1)), 80, bottomOffset, 10, rl.Maroon)
 	rl.DrawText(fmt.Sprintf("STP: %02d", songCurrentRow), 150, bottomOffset, 10, rl.Maroon)
 	rl.DrawText(fmt.Sprintf("STP: %02d", CurrentProject.Current().Current().CurrentStep), 200, bottomOffset, 10, rl.Maroon)
 
@@ -109,10 +114,9 @@ func (pv *SongView) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 		Logf("ui.SectionId was set to %d.\n", ui.SectionId)
 		return true
 	} else if songCurrentCol > 0 && input.Down(ev.InputKindA) || (input.Down(ev.InputKindB) && input.Down(ev.InputKindUp)) {
-		if len(CurrentProject.Tracks[ui.TrackId].Phrases[ui.SectionId]) == 0 {
+		if len(CurrentProject.Tracks[ui.TrackId].PhraseIds[ui.SectionId]) == 0 {
 			p := NewPhrase(CurrentProject)
 			CurrentProject.Tracks[ui.TrackId].PhraseIds[ui.SectionId] = []int32{p.ID}
-			CurrentProject.Tracks[ui.TrackId].Phrases[ui.SectionId] = []*Phrase{p}
 			ui.PhraseId = 0
 		}
 		_ = ui.NewTransition(ui.TrackDialog, rl.NewVector2(1, 1))
@@ -145,7 +149,7 @@ func (pv *SongView) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 		}
 
 		ui.TrackId = Clamp(songCurrentCol-1, 0, len(CurrentProject.Tracks)-1)
-		ui.PhraseId = Clamp(songCurrentRow-1, 0, len(CurrentProject.Tracks[ui.TrackId].Phrases[ui.SectionId])-1)
+		ui.PhraseId = Clamp(songCurrentRow-1, 0, len(CurrentProject.Tracks[ui.TrackId].PhraseIds[ui.SectionId])-1)
 
 		return true
 	} else if input.Down(ev.InputKindSpace) && !player.IsPlaying {

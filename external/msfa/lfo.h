@@ -16,6 +16,8 @@
 
 // Low frequency oscillator, compatible with DX7
 
+#include <cstdint>
+
 class Lfo {
  public:
   static void init(double sample_rate);

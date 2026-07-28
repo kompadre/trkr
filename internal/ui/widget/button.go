@@ -29,20 +29,19 @@ func (b Button) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 	if b.Action == nil {
 		return false
 	}
-	if input.Down(ev.InputKindEnter) {
-		b.Action(el)
-		return true
-	}
-	return false
+	// Button triggers on activation (which is handled by parent setting focus)
+	// or we can handle it here if we want to be sure.
+	b.Action(el)
+	return false // Deactivate immediately
 }
 
-func (b Button) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (b Button) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	laid := ctx.EventPayload.(*ui.ElementDrawPayload).Laid
 	container := laid.Bounds()
 	bgcolor := RGBA(30, 250, 30, 250)
 	fgcolor := ui.WindowFg2
 	labelPreffix := " "
-	if hasFocus {
+	if isHighlighted {
 		bgcolor = ui.WindowBg3
 		fgcolor = ui.WindowFg3
 		labelPreffix = ">"

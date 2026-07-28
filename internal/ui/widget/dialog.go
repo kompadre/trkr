@@ -32,7 +32,7 @@ func (d *Dialog) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
 	return false
 }
 
-func (d *Dialog) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (d *Dialog) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	ww, wh := int32(ui.GetOptions().ScreenWidth), int32(ui.GetOptions().ScreenHeight)
 	rl.DrawRectangle(0, 0, ww, 20, ui.WindowBg4)
 	rl.DrawRectangle(0, 20, ww, wh-20, ui.WindowBg5)

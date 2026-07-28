@@ -17,6 +17,8 @@
 #ifndef __CONTROLLERS_H
 #define __CONTROLLERS_H
 
+#include <cstdint>
+
 // State of MIDI controllers
 
 const int kControllerPitch = 128;

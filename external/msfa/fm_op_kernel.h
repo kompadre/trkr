@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+
 class FmOpKernel {
  public:
   // gain1 and gain2 represent linear step: gain for sample i is

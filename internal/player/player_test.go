@@ -28,7 +28,6 @@ func TestPlayheadAndRepeatsLeft(t *testing.T) {
 		Id:             0,
 		CurrentSection: 0,
 		PhraseIds:      [trkr.MaxSections][]int32{0: {0, 1}},
-		Phrases:        [trkr.MaxSections][]*trkr.Phrase{0: {&p0, &p1}},
 	}
 
 	project := &trkr.Project{
@@ -80,7 +79,6 @@ func TestPlayAndStop(t *testing.T) {
 		Id:             0,
 		CurrentSection: 0,
 		PhraseIds:      [trkr.MaxSections][]int32{0: {0}},
-		Phrases:        [trkr.MaxSections][]*trkr.Phrase{0: {&p0}},
 	}
 
 	trkr.CurrentProject = &trkr.Project{

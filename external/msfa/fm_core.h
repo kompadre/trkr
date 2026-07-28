@@ -16,6 +16,8 @@
 
 #ifndef __FM_CORE_H
 #define __FM_CORE_H
+
+#include <cstdint>
 #include "synth.h"
 #include "aligned_buf.h"
 

@@ -47,6 +47,10 @@ class SynthUnit {
         channel_volumes_[chan] = vol;
     }
 
+    void SetBank(const uint8_t *patch_data);
+    void SetVoice(int slot, const uint8_t *voice_data);
+    void GetBank(uint8_t *patch_data);
+
  private:
   void TransferInput();
 

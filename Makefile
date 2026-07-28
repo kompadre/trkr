@@ -32,13 +32,13 @@ clean:
 
 
 $(BINARY_AMD64_WAYLAND_RELEASE): $(SRCS)
-	go build ${BUILDFLAGS} -tags "wayland release" -trimpath -o $(BINARY_AMD64_WAYLAND_RELEASE) ./cmd
+	go build ${BUILDFLAGS} -tags "wayland release" -trimpath -o $(BINARY_AMD64_WAYLAND_RELEASE) ./cmd/trkr
 
 $(BINARY_AMD64_WAYLAND): $(SRCS)
-	go build ${BUILDFLAGS} -tags "wayland" -o $(BINARY_AMD64_WAYLAND) ./cmd
+	go build ${BUILDFLAGS} -tags "wayland" -o $(BINARY_AMD64_WAYLAND) ./cmd/trkr
 
 $(BINARY_AMD64_X11): $(SRCS)
-	go build ${BUILDFLAGS} -o $(BINARY_AMD64_X11) ./cmd
+	go build ${BUILDFLAGS} -o $(BINARY_AMD64_X11) ./cmd/trkr
 
 $(BINARY_ARM64): $(SRCS) $(DOCKERBUILT)
 	docker run --rm \
@@ -55,10 +55,10 @@ $(BINARY_ARM64): $(SRCS) $(DOCKERBUILT)
 		-e CGO_CFLAGS="-DGRAPHICS_API_OPENGL_ES2 -DPLATFORM_DESKTOP_SDL" \
 		-e CGO_LDFLAGS="-lm" \
 		$(DOCKERIMAGE) \
-		sh -c "go clean -cache && go build -a -tags 'sdl es2 release' -o $(BINARY_ARM64) ./cmd"
+		sh -c "go clean -cache && go build -a -tags 'sdl es2 release' -o $(BINARY_ARM64) ./cmd/trkr"
 
 $(BINARY_WIN64): $(SRCS)
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -o $(BINARY_WIN64) ./cmd
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ go build -o $(BINARY_WIN64) ./cmd/trkr
 
 $(DOCKERBUILT): $(DOCKERFILE)
 	docker build -t $(DOCKERIMAGE) -f $(DOCKERFILE) .

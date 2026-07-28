@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+
 class Freqlut {
  public:
   static void init(double sample_rate);

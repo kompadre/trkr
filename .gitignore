@@ -15,3 +15,5 @@
 /experiment/
 /assets/
 .aider*
+/songs
+/.cache

@@ -234,6 +234,27 @@ int SynthUnit::ProcessMidiMessage(const uint8_t *buf, int buf_size) {
   return buf_size;
 }
 
+void SynthUnit::GetBank(uint8_t *patch_data) {
+  memcpy(patch_data, patch_data_, 4096);
+}
+
+void SynthUnit::SetBank(const uint8_t *patch_data) {
+  memcpy(patch_data_, patch_data, 4096);
+  for (int ch = 0; ch < 16; ch++) {
+    ProgramChange(current_patch_[ch], ch);
+  }
+}
+
+void SynthUnit::SetVoice(int slot, const uint8_t *voice_data) {
+  if (slot < 0 || slot >= 32) return;
+  memcpy(patch_data_ + (slot * 128), voice_data, 128);
+  for (int ch = 0; ch < 16; ch++) {
+    if (current_patch_[ch] == slot) {
+      ProgramChange(slot, ch);
+    }
+  }
+}
+
 void SynthUnit::GetSamples(int n_samples, int16_t *buffer) {
   TransferInput();
   size_t input_offset;

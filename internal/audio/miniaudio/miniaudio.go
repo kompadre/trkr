@@ -2,7 +2,7 @@ package miniaudio
 
 /*
 #cgo CFLAGS: -I../../../external/raylib-go/raylib/external
-#cgo LDFLAGS: -lm -lpthread -ldl
+#cgo !windows LDFLAGS: -lm -lpthread -ldl
 #include "miniaudio_backend.h"
 */
 import "C"

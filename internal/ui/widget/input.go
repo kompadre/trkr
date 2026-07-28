@@ -40,6 +40,9 @@ func (in Input) Hide()    {}
 func (in Input) Cleanup() {}
 
 func (in *Input) HandleInput(input *ev.InputSnapshot, el *ui.Element) bool {
+	if input.Tick(ev.InputKindB) == 1 || input.Tick(ev.InputKindEnter) == 1 || input.Tick(ev.InputKindA) == 1 {
+		return false // Deactivate
+	}
 	switch in.WidgetType {
 	case WidgetInputTypeNumber:
 		return in.HandleInputNumber(input, el)
@@ -88,17 +91,9 @@ func (in *Input) HandleInputNumber(input *ev.InputSnapshot, el *ui.Element) bool
 			}
 		}
 		return true
-	} else if input.Down(ev.InputKindEnter) {
-		if in.Action != nil {
-			if !in.Action(in.ValueStr) {
-				return false
-			}
-		}
-		el.Parent.FocusJump(1)
-		return true
 	}
 
-	return false
+	return true // Keep active
 }
 
 func (in *Input) HandleInputText(input *ev.InputSnapshot, el *ui.Element) bool {
@@ -132,42 +127,43 @@ func (in *Input) HandleInputText(input *ev.InputSnapshot, el *ui.Element) bool {
 		in.FocusedChar = trkr.Clamp(in.FocusedChar-1, 0, 7)
 		in.ValueStr = strings.TrimRight(string(in.Value[:]), " ")
 		return true
-	} else if input.Down(ev.InputKindEnter) {
-		if in.Action != nil {
-			if !in.Action(in.ValueStr) {
-				return false
-			}
-		}
-		el.Parent.FocusJump(1)
-		return true
 	}
-	return false
+	return true // Keep active
 }
 
-func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (in *Input) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	p := ctx.EventPayload.(*ui.ElementDrawPayload)
 	if p == nil {
 		return false
 	}
 
-	// bgcolor := ui.InputBg1
+	bgcolor := ui.WindowBg1
 	fgcolor := ui.WindowFg1
+	if isHighlighted {
+		bgcolor = ui.WindowBg2
+		if hasFocus {
+			bgcolor = ui.WindowBg3
+			fgcolor = ui.WindowFg3
+		}
+	}
+
 	preffix := ""
-	if hasFocus {
+	if isHighlighted {
 		preffix = ">"
+		if hasFocus {
+			preffix = "*"
+		}
 	}
 	rec := p.Laid.Bounds()
-	p.Laid.SetRowHeight(20)
-	ui.DrawText(preffix+in.Label, int32(rec.X), int32(rec.Y+2), 20, fgcolor)
-	rl.DrawRectangleLinesEx(rec, 2, rl.Red)
+	p.Laid.SetRowHeight(24)
 
-	var extraLeft int32 = 65
+	rl.DrawRectangleRec(rec, bgcolor)
+	ui.DrawText(preffix+in.Label, int32(rec.X+4), int32(rec.Y+4), 16, fgcolor)
+
+	var extraLeft int32 = 80
 	var underLeft int32
 	for i := range 8 {
-		if in.Value[i] == 'I' {
-			extraLeft += 0
-		}
-		ui.DrawText(string(in.Value[i]), int32(rec.X)+extraLeft, int32(rec.Y+2), 20, fgcolor)
+		ui.DrawText(string(in.Value[i]), int32(rec.X)+extraLeft, int32(rec.Y+4), 16, fgcolor)
 		if i == int(in.FocusedChar) {
 			underLeft = extraLeft
 		}
@@ -178,9 +174,9 @@ func (in *Input) Draw(ctx ev.EventContext, hasFocus bool) bool {
 			break
 		}
 	}
-	// ui.DrawText(in.ValueStr, left+84, top+2, 20, fgcolor)
+
 	if hasFocus {
-		rl.DrawText("_", int32(rec.X)+underLeft, int32(rec.Y+6), 20, fgcolor)
+		ui.DrawText("_", int32(rec.X)+underLeft, int32(rec.Y+8), 16, fgcolor)
 	}
 
 	return false

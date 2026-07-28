@@ -7,7 +7,6 @@ import (
 	. "trkr"
 	"trkr/internal/audio/effects"
 	"trkr/internal/audio/miniaudio"
-	"trkr/internal/audio/perc"
 	ev "trkr/internal/events"
 )
 
@@ -98,9 +97,9 @@ func InitVoiceMasterStream() {
 
 	// Warm tape-style delay settings
 	Delay = effects.NewDelay(
-		60/105, // 160ms delay time
-		0.28,   // 28% feedback
-		0.45,   // 15% wet mix
+		60.0/105.0, // 160ms delay time
+		0.28,       // 28% feedback
+		0.45,       // 15% wet mix
 		48000.0,
 	)
 	Filter = effects.NewFilter(effects.FilterTypeLPF, 2500.0, 0, 48000)
@@ -150,71 +149,14 @@ func FindFreeVoice(columnId uint8, trackId uint8, instrumentId uint8) *Voice {
 }
 
 func (v *Voice) Play() {
-	if v.InstrumentId == 0xff {
+	if v.InstrumentId == 0xff || (v.Instrument != nil && v.Instrument.SampleSourceType == SampleSourceTypeFmPickup) {
 		v.Envelope.State = EnvSustain
+		v.Envelope.Value = 1.0
 		return
 	} else if v.Instrument.SampleSourceType == SampleSourceTypePerc {
 		v.Envelope.State = EnvSustain
 		slot := int(v.Note) % len(v.Instrument.Percs)
-		switch slot {
-		case 0:
-			v.Instrument.Percs[slot] = perc.Percussion{
-				Freq:       45,
-				ModAmt:     0.5,
-				NoiseEnv:   0.0,
-				AmpEnv:     1.0,
-				PitchEnv:   1.0,
-				AmpDecay:   0.9995,
-				PitchDecay: 0.995,
-				NoiseDecay: 0.999,
-				NoiseMix:   0.0,
-			}
-		case 1:
-			v.Instrument.Percs[slot] = perc.Percussion{
-				Freq:   160, // The fundamental frequency of a typical snare head hit (150Hz - 220Hz)
-				ModAmt: 1.5, // Higher FM index adds metallic, harsh overtones to the initial strike
-
-				// Envelopes start at full blast
-				AmpEnv:   1.0,
-				PitchEnv: 1.0,
-				NoiseEnv: 1.0,
-
-				// --- The Snare Tuning ---
-				AmpDecay:   0.9985, // A bit shorter than a kick—snare bodies decay fast
-				PitchDecay: 0.985,  // Still very fast, but slightly slower than a kick to give it a "crack"
-				NoiseDecay: 0.9992, // CRITICAL: Noise decay is LONGER than AmpDecay!
-				NoiseMix:   0.6,
-			}
-		case 2:
-			v.Instrument.Percs[slot] = perc.Percussion{
-				Freq:   400.0, // The tone frequency matters less here, but keep it up out of the mud
-				ModAmt: 8.0,   // Extreme FM modulation creates chaotic, unharmonious metallic frequencies
-
-				// Envelopes
-				AmpEnv:   0.2, // Keep the metallic tone transient incredibly quiet...
-				NoiseEnv: 0.7, // ...and let the filtered noise do 90% of the work!
-				PitchEnv: 0.0, // No pitch sweep needed for hats
-
-				// --- The Hat Tuning ---
-				AmpDecay:   0.980, // Tonal component vanishes almost instantly
-				PitchDecay: 0.0,
-				NoiseDecay: 0.9985, // Adjust this for Closed vs. Open hats!
-				NoiseMix:   1.0,
-			}
-		case 3:
-			v.Instrument.Percs[slot] = perc.Percussion{
-				Freq:       400,
-				ModRatio:   2.31,
-				ModAmt:     1.2,
-				NoiseEnv:   0.0,
-				AmpEnv:     1.0,
-				PitchEnv:   1.0,
-				AmpDecay:   0.995,
-				PitchDecay: 0.995,
-				NoiseDecay: 0.990,
-				NoiseMix:   0.15,
-			}
-		}
+		v.Instrument.Percs[slot].Trigger()
 		return
 	}
 
@@ -262,66 +204,63 @@ func (v *Voice) Cut() {
 }
 
 func (v *Voice) IsPlaying() bool {
-	return v.Envelope.State != EnvIdle && v.Envelope.State != EnvRelease
+	return v.Envelope.State != EnvIdle
 }
 
-func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float32 {
-	var volScale float32 = float32(v.Volume) // * headroomScale
-	var maxAbs float32
-	var bufferMsfa []int16
+func (v *Voice) UpdateVoice(writeBuffer []float32) {
+	var volScale float32 = float32(v.Volume)
 	var bufferPerc []float32
 	var waveLenInt int
 	var waveLen float64
-	if v.TrackId == 0xff {
-		if SynthInstance == nil {
-			Logf("Synth was nil.\n")
-			return 0.0
-		}
-		bufferMsfa = make([]int16, len(writeBuffer))
-		SynthInstance.GetSamples(bufferMsfa)
-	} else if v.Instrument.SampleSourceType == SampleSourceTypePerc {
+	if v.Instrument.SampleSourceType == SampleSourceTypePerc {
 		bufferPerc = make([]float32, len(writeBuffer))
 		waveLenInt = v.Instrument.GetPercSamples(bufferPerc, int(v.Note))
-		//Logf("bufferPercHead: %v.\n", bufferPerc[:99])
-		// Logf("bufferPercTail: %v.\n", bufferPerc[len(bufferPerc)-99:])
 		waveLen = float64(waveLenInt)
 	} else {
 		waveLenInt = len(v.Samples)
 		waveLen = float64(waveLenInt)
 	}
 
-	var envVolume float32 = 1.0
 	for i := range writeBuffer {
 		if v.TrackId != 0xff {
-			envVolume = v.TickEnvelope()
+			envVolume := v.TickEnvelope()
 			if v.Envelope.State == EnvIdle {
 				break
 			}
+			// Only apply the software envelope to simple waveforms (Square, Saw, Cosine)
+			// Perc and Wavefiles handle their own amplitude/attenuation.
+			isSimpleWaveform := v.Instrument.SampleSourceType == SampleSourceTypeSquare ||
+				v.Instrument.SampleSourceType == SampleSourceTypeSawtooth ||
+				v.Instrument.SampleSourceType == SampleSourceTypeCosine
+
+			if isSimpleWaveform {
+				volScale = float32(v.Volume) * envVolume
+			} else {
+				volScale = float32(v.Volume)
+			}
 		}
-		var sample float32 = 1.0
+		var sample float32 = 0.0
 		switch v.Instrument.SampleSourceType {
 		case SampleSourceTypeSquare:
 			if v._phase >= 0.5 {
 				sample = -1.0
+			} else {
+				sample = 1.0
 			}
 		case SampleSourceTypeSawtooth:
 			sample = float32((v._phase * 2.0) - 1.0)
 		case SampleSourceTypeCosine:
 			sample = float32(math.Cos(v._phase * 2.0 * math.Pi))
-		case SampleSourceTypeFmPickup:
-			sample = float32(bufferMsfa[i]) / 32767.5
 		case SampleSourceTypePerc:
 			if waveLenInt > i {
 				sample = bufferPerc[i]
 			} else {
 				sample = 0.0
-				Logf("Releasing perc...")
 				v.Envelope.State = EnvIdle
 			}
 		case SampleSourceTypeWavefile:
 			if !v.Instrument.SamplesLoaded {
-				Logf("Samples not loaded, returning 0.0 for instrument %d!\n", v.Instrument.Id)
-				return 0.0
+				return
 			}
 			idxA := int(v._phase)
 			if v.Instrument.LoopEnd == 0 {
@@ -349,12 +288,7 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			}
 		}
 
-		if false {
-			volScale *= envVolume
-		}
-
 		sample *= volScale
-		maxAbs = max(maxAbs, sample, -sample)
 		writeBuffer[i] += sample
 		v._phase += v._phaseStep
 
@@ -371,7 +305,6 @@ func (v *Voice) UpdateVoice(writeBuffer []float32, headroomScale float32) float3
 			}
 		}
 	}
-	return maxAbs
 }
 
 var slider uint8
@@ -440,44 +373,77 @@ CommandLoop:
 }
 
 func MasterUpdate(ctx ev.EventContext) bool {
+	if IsExporting {
+		return true
+	}
 	for miniaudio.AvailableWriteSpace() >= VoiceBufferSize {
-
 		MasterQueueCommands()
-
-		currentHeadroomCount := 0
-		for _, v := range voicePool {
-			if v.IsPlaying() && v.Instrument.SampleSourceType != SampleSourceTypeFm {
-				currentHeadroomCount++
-			}
-		}
-
-		for i := range masterBuffer {
-			masterBuffer[i] = 0.0
-		}
-
-		if currentHeadroomCount < 1 {
-			Logf("Exiting early because nobody's playing.\n")
-			miniaudio.WriteChannels(masterBuffer[:], masterBuffer[:])
-			continue
-		}
-
-		headroomScale := 0.995 / float32(currentHeadroomCount)
-		var maxAbs float32
-		for _, v := range voicePool {
-			if v.Envelope.State == EnvIdle || v.Instrument.SampleSourceType == SampleSourceTypeFm {
-				continue
-			}
-			maxAbs = max(maxAbs, v.UpdateVoice(masterBuffer[:], headroomScale))
-		}
-		if Delay != nil && Delay.Mix > 0 {
-			//			Delay.Process(masterBuffer[:])
-		}
-		if Filter.Type != effects.FilterTypeNone {
-			//		Filter.Process(masterBuffer[:])
-		}
+		Mix(masterBuffer[:])
 		miniaudio.WriteChannels(masterBuffer[:], masterBuffer[:])
 	}
 	return true
+}
+
+var msfaScratchBuffer []int16
+
+func Mix(out []float32) {
+	if SynthInstance != nil {
+		if len(msfaScratchBuffer) < len(out) {
+			msfaScratchBuffer = make([]int16, len(out))
+		}
+		SynthInstance.GetSamples(msfaScratchBuffer[:len(out)])
+	}
+
+	for i := range out {
+		out[i] = 0.0
+	}
+
+	hasContent := false
+	for _, v := range voicePool {
+		if !v.IsPlaying() || v.Instrument.SampleSourceType == SampleSourceTypeFm {
+			continue
+		}
+		hasContent = true
+		// Special case for FM Pickup: we already fetched the samples
+		if v.Instrument.SampleSourceType == SampleSourceTypeFmPickup {
+			for i := range out {
+				out[i] += (float32(msfaScratchBuffer[i]) / 32768.0) * float32(v.Volume)
+			}
+			continue
+		}
+		v.UpdateVoice(out)
+	}
+
+	if !hasContent && SynthInstance == nil {
+		return
+	}
+
+	// Calculate peak and apply saturator (limiter)
+	var maxAbs float32
+	for _, s := range out {
+		a := s
+		if a < 0 {
+			a = -a
+		}
+		if a > maxAbs {
+			maxAbs = a
+		}
+	}
+
+	if saturator != nil {
+		saturator(out, maxAbs)
+	}
+
+	if Delay != nil && Delay.Mix > 0 {
+		//			Delay.Process(out)
+	}
+	if Filter.Type != effects.FilterTypeNone {
+		//		Filter.Process(out)
+	}
+}
+
+func ResetSaturator() {
+	saturator = NewSaturator()
 }
 
 func (v *Voice) TickEnvelope() float32 {
@@ -571,24 +537,40 @@ func NewLowPassFilter() func(masterBuffer []float32) {
 
 func NewSaturator() func([]float32, float32) {
 	// This variable is captured and persists across callbacks
-	var lastGain float32 = 1.0
+	var currentGain float32 = 1.0
 
 	return func(masterBuffer []float32, blockPeak float32) {
-		nextGain := float32(1.0)
+		targetGain := float32(0.8)
 		if blockPeak > 1.0 {
-			nextGain = 1.0 / blockPeak
+			targetGain = 1.0 / blockPeak
 		}
 
-		// Calculate the smooth slope over the 4096 samples
-		startGain := lastGain
-		gainDelta := (nextGain - startGain) / float32(len(masterBuffer))
+		// Calculate how many samples we'll process
+		n := float32(len(masterBuffer))
+		if n <= 0 {
+			return
+		}
 
+		// Smoothing factor: how fast we reach the target gain.
+		// We want a very fast attack (drop) and a slower release.
 		for i := range masterBuffer {
-			masterBuffer[i] *= startGain + (gainDelta * float32(i))
+			var alpha float32
+			if targetGain < currentGain {
+				alpha = 0.05 // Fast attack to stop clipping (~1ms)
+			} else {
+				alpha = 0.0005 // Slower release to avoid pumping (~100ms)
+			}
+			currentGain = currentGain*(1.0-alpha) + targetGain*alpha
+			masterBuffer[i] *= currentGain
 		}
+	}
+}
 
-		// Update the captured state for the next Raylib callback
-		lastGain = nextGain
+func CutAllVoices() {
+	for _, v := range voicePool {
+		if v.IsPlaying() {
+			v.Cut()
+		}
 	}
 }
 

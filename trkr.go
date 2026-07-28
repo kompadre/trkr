@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"trkr/external/msfa"
+	"trkr/internal/audio/fm"
 	"trkr/internal/audio/perc"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -61,7 +63,14 @@ func NewPhrase(pr *Project) *Phrase {
 
 func NewInstrument(pr *Project) *Instrument {
 	id := uint8(len(pr.Instruments))
-	pr.Instruments = append(pr.Instruments, Instrument{Id: id})
+	ins := Instrument{Id: id}
+	// Default Percussion Setup
+	ins.Percs[0] = perc.Percussion{Freq: 45, ModAmt: 0.5, AmpDecay: 0.9998, PitchDecay: 0.992, NoiseDecay: 0.999, NoiseMix: 0.0}
+	ins.Percs[1] = perc.Percussion{Freq: 160, ModAmt: 1.5, AmpDecay: 0.9994, PitchDecay: 0.985, NoiseDecay: 0.9996, NoiseMix: 0.6}
+	ins.Percs[2] = perc.Percussion{Freq: 400.0, ModAmt: 8.0, AmpDecay: 0.998, PitchDecay: 0.0, NoiseDecay: 0.9992, NoiseMix: 1.0}
+	ins.Percs[3] = perc.Percussion{Freq: 400, ModRatio: 2.31, ModAmt: 1.2, AmpDecay: 0.999, PitchDecay: 0.995, NoiseDecay: 0.990, NoiseMix: 0.15}
+
+	pr.Instruments = append(pr.Instruments, ins)
 	return &pr.Instruments[len(pr.Instruments)-1]
 }
 
@@ -174,9 +183,8 @@ type Track struct {
 	Instrument     *Instrument `json:"-"`
 	InstrumentId   uint8
 	CurrentProgram int
-	CurrentPhrase  int                    `json:"-"`
-	CurrentSection int                    `json:"-"`
-	Phrases        [MaxSections][]*Phrase `json:"-"`
+	CurrentPhrase  int `json:"-"`
+	CurrentSection int `json:"-"`
 	PhraseIds      [MaxSections][]int32
 	Volume         float64
 	SkipsLeft      uint8
@@ -195,7 +203,6 @@ func NewTrack(p *Project) *Track {
 	newInstrument := NewInstrument(p)
 	newInstrument.SampleSourceType = SampleSourceTypeFm
 	newInstrument.Program = 0
-	result.Phrases[result.CurrentSection] = []*Phrase{newPhrase}
 	result.PhraseIds[result.CurrentSection] = []int32{newPhrase.ID}
 	result.InstrumentId = newInstrument.Id
 	result.Instrument = newInstrument
@@ -218,6 +225,7 @@ type Project struct {
 	Instruments    []Instrument
 	Sections       []Section
 	FmPatchName    string
+	BPM            int
 }
 
 func (p *Phrase) Current() *Step {
@@ -225,18 +233,12 @@ func (p *Phrase) Current() *Step {
 }
 
 func (t *Track) Current() *Phrase {
-	if len(t.Phrases) == 0 {
-		return nil
-	}
 	if len(t.PhraseIds[t.CurrentSection]) > 0 {
 		idx := Clamp(t.CurrentPhrase, 0, len(t.PhraseIds[t.CurrentSection])-1)
 		phraseId := t.PhraseIds[t.CurrentSection][idx]
 		if int(phraseId) < len(CurrentProject.Phrases) {
 			return &CurrentProject.Phrases[phraseId]
 		}
-	}
-	if len(t.Phrases[t.CurrentSection]) > 0 {
-		return t.Phrases[t.CurrentSection][t.CurrentPhrase]
 	}
 	return nil
 }
@@ -261,6 +263,12 @@ func (p *Project) Current() *Track {
 }
 
 var CurrentProject *Project
+var IsExporting bool
+var audioSynthInstance *msfa.Synth
+
+func SetAudioSynthInstance(s *msfa.Synth) {
+	audioSynthInstance = s
+}
 
 func ResetHead() {
 	Logf("Resetting head!\n")
@@ -342,16 +350,6 @@ func LoadProject(path string, p *Project) error {
 			if p.Tracks[t].PhraseIds[s] == nil {
 				p.Tracks[t].PhraseIds[s] = make([]int32, 0)
 			}
-			p.Tracks[t].Phrases[s] = make([]*Phrase, len(p.Tracks[t].PhraseIds[s]))
-			for idx, id := range CurrentProject.Tracks[t].PhraseIds[s] {
-				fmt.Printf("Appending phrase.\n")
-				if id >= int32(len(CurrentProject.Phrases)) {
-					id = 0
-					Logf("Couldn't match phrase id %d, Project.Phrases is smaller\n", id)
-					continue
-				}
-				p.Tracks[t].Phrases[s][idx] = &CurrentProject.Phrases[id]
-			}
 		}
 		p.Tracks[t].Instrument = &p.Instruments[p.Tracks[t].InstrumentId]
 	}
@@ -362,12 +360,29 @@ func LoadProject(path string, p *Project) error {
 			Logf("Loaded samples %v. Len samples %d. Len samples[0] %d.\n", i.SampleSource, len(i.Samples), len(i.Samples[0]))
 		}
 	}
-	p.Sections = []Section{{Id: 0, Name: "INTRO", Rows: 224}, {Id: 1, Name: "DEV 1", Rows: 64}}
+	if p.BPM > 0 {
+		BeatsPerMinute = p.BPM
+	}
 	return nil
 }
 
 func SaveProject() error {
 	path := CurrentProject.Filename
+	CurrentProject.BPM = BeatsPerMinute
+	
+	// Also save the FM bank
+	if audioSynthInstance != nil {
+		bankData := make([]byte, 4096)
+		audioSynthInstance.GetBank(bankData)
+		bank := fm.Bank{}
+		for i := 0; i < 32; i++ {
+			copy(bank.Voices[i][:], bankData[i*128:(i+1)*128])
+		}
+		syxData := bank.ToSysex()
+		bankPath := fm.SanitizeFilename(path) + ".syx"
+		os.WriteFile(bankPath, syxData, 0644)
+	}
+
 	file, err := os.Create(path)
 	if err != nil {
 		return err

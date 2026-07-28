@@ -28,6 +28,10 @@ void dx7_unpack_patch(const char* bulk, char* patch);
 
 void dx7_set_channel_volume(int32_t channel, int32_t volume);
 
+void dx7_set_bank(DX7Instance synth, const uint8_t* bank_data);
+void dx7_set_voice(DX7Instance synth, int slot, const uint8_t* voice_data);
+void dx7_get_bank(DX7Instance synth, uint8_t* bank_data);
+
 #ifdef __cplusplus
 }
 #endif

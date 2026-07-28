@@ -30,17 +30,29 @@ type Percussion struct {
 	NoiseMix     float64
 }
 
+func (v *Percussion) Trigger() {
+	v.AmpEnv = 1.0
+	v.PitchEnv = 1.0
+	v.NoiseEnv = 1.0
+	v.PhaseC = 0
+	v.PhaseM = 0
+	v.CurrentFreqC = 0
+	v.LastNoise = 0
+}
+
 func (v *Percussion) ProcessSample(idx int) float32 {
 	const TwoPi = 2.0 * math.Pi
 
 	// 1. Calculate the raw target carrier frequency
-	targetFreqC := v.Freq + (50.0 * v.PitchEnv * v.PitchEnv)
+	// Snappy click: Start much higher and drop faster using a higher power for the envelope
+	targetFreqC := v.Freq + (800.0 * v.PitchEnv * v.PitchEnv * v.PitchEnv)
 
 	// 2. Smooth the persistent struct variable toward the target
 	if v.CurrentFreqC == 0 {
 		v.CurrentFreqC = targetFreqC // Initialize on first sample so it doesn't sweep from 0Hz
 	}
-	v.CurrentFreqC = (v.CurrentFreqC * 0.995) + (targetFreqC * 0.005)
+	// Faster smoothing (0.8 instead of 0.995) to preserve the transient click
+	v.CurrentFreqC = (v.CurrentFreqC * 0.8) + (targetFreqC * 0.2)
 
 	// Modulator frequency can just be local now, since it derives from the smoothed carrier
 	currentFreqM := v.CurrentFreqC * v.ModRatio

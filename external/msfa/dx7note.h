@@ -17,6 +17,8 @@
 #ifndef SYNTH_DX7NOTE_H_
 #define SYNTH_DX7NOTE_H_
 
+#include <cstdint>
+
 // This is the logic to put together a note from the MIDI description
 // and run the low-level modules.
 

@@ -53,7 +53,7 @@ func NewTransition(parent *Element, dir rl.Vector2) *Element {
 
 func (t *Transition) Show() {}
 func (t *Transition) Hide() {}
-func (t *Transition) Draw(ctx ev.EventContext, hasFocus bool) bool {
+func (t *Transition) Draw(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	if t.Dir.X != t.Dir.Y {
 		srcRect := rl.NewRectangle(0, 0, float32(GetOptions().ScreenWidth), float32(GetOptions().ScreenHeight))
 		rl.DrawTextureRec(t.Render.Texture, srcRect, t.Pos, t.Tint)

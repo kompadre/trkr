@@ -67,6 +67,10 @@ func main() {
 	view.CreateTrack(ui.RootElement)
 	view.CreateSongView(ui.RootElement)
 	view.CreateSettings(ui.RootElement)
+	view.CreateInstrumentSettings(ui.RootElement)
+	view.CreatePatchBrowser(ui.RootElement)
+	ui.RootElement.FocusedChild = view.GetTrackElement()
+
 	player.CreatePlayer(ui.RootElement)
 	defer (func() {
 		if player.IsPlaying {
@@ -79,7 +83,7 @@ func main() {
 	}, ui.RootElement.ID)
 
 	ev.RegisterCallback(ev.EventKindUpdate, func(ctx ev.EventContext) bool {
-		return ui.RootElement.Draw(ctx)
+		return ui.RootElement.Draw(ctx, true, true)
 	}, ui.RootElement.ID)
 
 	image := rl.LoadImage("./assets/images/bg.png")
@@ -204,7 +208,6 @@ func demoProject(currentProject *Project) {
 	currentTrack.InstrumentId = instrument.Id
 	currentTrack.Instrument = instrument
 	currentTrack.Instrument.Program = 0
-	currentTrack.Phrases[currentTrack.CurrentSection] = []*Phrase{currentPhrase}
 	currentTrack.PhraseIds[currentTrack.CurrentSection] = []int32{currentPhrase.ID}
 	currentTrack.Volume = 1.0
 	currentProject.Tracks = append(currentProject.Tracks, currentTrack)

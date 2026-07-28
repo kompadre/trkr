@@ -2,9 +2,11 @@ package view
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	. "trkr"
 	ev "trkr/internal/events"
+	"trkr/internal/player"
 	"trkr/internal/ui"
 	"trkr/internal/ui/widget"
 
@@ -18,6 +20,7 @@ func CreateSettings(parent *ui.Element) {
 	var uiElem *ui.Element
 	core := ui.NewElementCoreInstance(showSettings, hideSettings, settingsHandleInputs, drawSettings)
 	uiElem = ui.NewElement(0, 0, int32(ui.GetOptions().ScreenWidth), 300, core, parent)
+	uiElem.Name = "Settings"
 	uiElem.Visible = false
 	uiElem.IsAnchor = true
 	projectName := widget.NewInput("Name: ", 0, 0, 150, 26, func(a any) bool {
@@ -39,9 +42,26 @@ func CreateSettings(parent *ui.Element) {
 		uiElem.Visible = false
 		return true
 	}, buttonsRow)
-	widget.NewButton("NEW", buttonCol, 30, nil, buttonsRow)
-	widget.NewButton("SAVE", buttonCol, 30, nil, buttonsRow)
-	widget.NewButton("QUIT", buttonCol, 30, nil, buttonsRow)
+	widget.NewButton("WAV", buttonCol, 30, func(_ any) bool {
+		go func() {
+			err := player.ExportWav("export.wav")
+			if err != nil {
+				fmt.Printf("Export error: %v\n", err)
+			}
+		}()
+		return true
+	}, buttonsRow)
+	widget.NewButton("SAVE", buttonCol, 30, func(_ any) bool {
+		err := SaveProject()
+		if err != nil {
+			fmt.Printf("Save error: %v\n", err)
+		}
+		return true
+	}, buttonsRow)
+	widget.NewButton("QUIT", buttonCol, 30, func(_ any) bool {
+		os.Exit(0)
+		return true
+	}, buttonsRow)
 
 	ui.SettingsDialog = uiElem
 
@@ -52,6 +72,8 @@ func CreateSettings(parent *ui.Element) {
 
 func hideSettings() {
 	ui.SettingsDialog.Visible = false
+	ui.TrackDialog.Visible = true
+	ui.SettingsDialog.Parent.SetFocus(ui.TrackDialog)
 }
 
 func showSettings() {
@@ -62,13 +84,13 @@ func showSettings() {
 	}
 }
 
-func drawSettings(ctx ev.EventContext, hasFocus bool) bool {
+func drawSettings(ctx ev.EventContext, hasFocus bool, isHighlighted bool) bool {
 	p := ctx.EventPayload.(*ui.ElementDrawPayload)
 	if rec, v := p.Laid.Col(12, 12, 6, 6); v {
 		rec.Width = float32(rl.GetScreenWidth())
 		rec.Height = float32(rl.GetScreenHeight())
 		Logf("Settings rect: %v\n", rec)
-		rl.DrawRectangleRec(rec, RGBA(0xff, 0xff, 0xff, 0xFF))
+		rl.DrawRectangleRec(rec, ui.WindowBg1)
 		ui.DrawText("Project", int32(rec.X)+10, int32(rec.Y), 20, ui.WindowFg1)
 		rec.X += 10
 		rec.Y += 20
@@ -81,18 +103,9 @@ func drawSettings(ctx ev.EventContext, hasFocus bool) bool {
 }
 
 func settingsHandleInputs(input *ev.InputSnapshot, el *ui.Element) bool {
-	var result bool
-	if /* input.Down(ev.InputKindEnter) || */ input.Down(ev.InputKindB) {
-		fmt.Printf("Hiding...")
-		ui.SettingsDialog.Parent.FocusJump(0)
+	if input.Tick(ev.InputKindB) == 1 {
 		hideSettings()
-		result = true
-	} else if input.Down(ev.InputKindRight) || input.Down(ev.InputKindDown) {
-		ui.SettingsDialog.FocusJump(1)
-		result = true
-	} else if input.Down(ev.InputKindLeft) || input.Down(ev.InputKindUp) {
-		ui.SettingsDialog.FocusJump(-1)
-		result = true
+		return true
 	}
-	return result
+	return false
 }
